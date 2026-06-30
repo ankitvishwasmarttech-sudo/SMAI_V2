@@ -5,20 +5,20 @@ const auth = require('../middleware/auth');
 const { encrypt, decrypt, last4 } = require('../utils/crypto');
 const router = express.Router();
 
-// Strip sensitive fields before sending to frontend — never expose the encrypted blob
 function sanitize(agent) {
   if (!agent) return agent;
   const { api_key_encrypted, ...safe } = agent;
   return safe;
 }
 
+// All agents belonging to the user's ORGANIZATION (shared across the team)
 router.get('/', auth, (req, res) => {
-  const rows = db.prepare('SELECT * FROM agents WHERE user_id=? ORDER BY created_at DESC').all(req.user.id);
+  const rows = db.prepare('SELECT * FROM agents WHERE org_id=? ORDER BY created_at DESC').all(req.user.org_id);
   res.json(rows.map(sanitize));
 });
 
 router.get('/:id', auth, (req, res) => {
-  const row = db.prepare('SELECT * FROM agents WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
+  const row = db.prepare('SELECT * FROM agents WHERE id=? AND org_id=?').get(req.params.id, req.user.org_id);
   if (!row) return res.status(404).json({ error: 'Not found' });
   res.json(sanitize(row));
 });
@@ -33,19 +33,18 @@ router.post('/', auth, (req, res) => {
   const keyStatus = api_key ? 'connected' : 'missing';
 
   db.prepare(`INSERT INTO agents
-    (id,user_id,name,prompt,voice,language,provider,api_key_encrypted,api_key_last4,key_status)
-    VALUES (?,?,?,?,?,?,?,?,?,?)`)
-    .run(id, req.user.id, name, prompt, voice||'alloy', language||'hinglish', provider||'groq', encrypted, keyLast4, keyStatus);
+    (id,org_id,user_id,name,prompt,voice,language,provider,api_key_encrypted,api_key_last4,key_status)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(id, req.user.org_id, req.user.id, name, prompt, voice||'alloy', language||'hinglish', provider||'groq', encrypted, keyLast4, keyStatus);
 
   res.json(sanitize({ id, name, prompt, voice, language, provider, api_key_last4: keyLast4, key_status: keyStatus, status: 'active' }));
 });
 
 router.put('/:id', auth, (req, res) => {
   const { name, prompt, voice, language, provider, status, api_key } = req.body;
-  const existing = db.prepare('SELECT * FROM agents WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
+  const existing = db.prepare('SELECT * FROM agents WHERE id=? AND org_id=?').get(req.params.id, req.user.org_id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
-  // Only update the key if a new one was actually provided (not the masked placeholder)
   let encrypted = existing.api_key_encrypted;
   let keyLast4 = existing.api_key_last4;
   let keyStatus = existing.key_status;
@@ -58,14 +57,13 @@ router.put('/:id', auth, (req, res) => {
   }
 
   db.prepare(`UPDATE agents SET name=?,prompt=?,voice=?,language=?,provider=?,status=?,
-    api_key_encrypted=?,api_key_last4=?,key_status=? WHERE id=? AND user_id=?`)
-    .run(name,prompt,voice,language,provider,status,encrypted,keyLast4,keyStatus,req.params.id,req.user.id);
+    api_key_encrypted=?,api_key_last4=?,key_status=? WHERE id=? AND org_id=?`)
+    .run(name,prompt,voice,language,provider,status,encrypted,keyLast4,keyStatus,req.params.id,req.user.org_id);
   res.json({ success: true });
 });
 
-// Test that the stored key actually works (lightweight ping per provider)
 router.post('/:id/test-key', auth, async (req, res) => {
-  const agent = db.prepare('SELECT * FROM agents WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
+  const agent = db.prepare('SELECT * FROM agents WHERE id=? AND org_id=?').get(req.params.id, req.user.org_id);
   if (!agent) return res.status(404).json({ error: 'Not found' });
   if (!agent.api_key_encrypted) return res.json({ valid: false, message: 'No API key set' });
 
@@ -79,7 +77,6 @@ router.post('/:id/test-key', auth, async (req, res) => {
       testUrl = 'https://api.openai.com/v1/models';
       headers = { Authorization: `Bearer ${key}` };
     } else if (agent.provider === 'claude') {
-      // Anthropic doesn't have a free models list endpoint; do a minimal check instead
       db.prepare('UPDATE agents SET key_status=? WHERE id=?').run('connected', req.params.id);
       return res.json({ valid: true, message: 'Key format accepted (Anthropic has no validation endpoint)' });
     } else {
@@ -98,18 +95,17 @@ router.post('/:id/test-key', auth, async (req, res) => {
 });
 
 router.post('/:id/clone', auth, (req, res) => {
-  const src = db.prepare('SELECT * FROM agents WHERE id=? AND user_id=?').get(req.params.id, req.user.id);
+  const src = db.prepare('SELECT * FROM agents WHERE id=? AND org_id=?').get(req.params.id, req.user.org_id);
   if (!src) return res.status(404).json({ error: 'Not found' });
   const id = uuidv4();
-  // Clone does NOT copy the API key — force the new agent to require its own key
-  db.prepare(`INSERT INTO agents (id,user_id,name,prompt,voice,language,provider,status,key_status)
-    VALUES (?,?,?,?,?,?,?,?,?)`)
-    .run(id, req.user.id, src.name + ' (Copy)', src.prompt, src.voice, src.language, src.provider, 'active', 'missing');
+  db.prepare(`INSERT INTO agents (id,org_id,user_id,name,prompt,voice,language,provider,status,key_status)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`)
+    .run(id, req.user.org_id, req.user.id, src.name + ' (Copy)', src.prompt, src.voice, src.language, src.provider, 'active', 'missing');
   res.json({ id, name: src.name + ' (Copy)' });
 });
 
 router.delete('/:id', auth, (req, res) => {
-  db.prepare('DELETE FROM agents WHERE id=? AND user_id=?').run(req.params.id,req.user.id);
+  db.prepare('DELETE FROM agents WHERE id=? AND org_id=?').run(req.params.id, req.user.org_id);
   res.json({ success: true });
 });
 

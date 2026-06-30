@@ -5,94 +5,57 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>SMAI — Enterprise AI Calling Platform</title>
 <link rel="stylesheet" href="style.css"/>
+<link rel="stylesheet" href="flowbuilder.css"/>
 </head>
 <body>
 
-<!-- ============ AUTH SCREEN ============ -->
 <div id="auth-screen">
   <div class="auth-left">
-    <div class="brand-mark">
-      <div class="brand-box"></div>
-      <div>
-        <div class="brand-name">SMAI</div>
-        <div class="brand-tag">Calling Platform</div>
-      </div>
-    </div>
+    <div class="brand-mark"><div class="brand-box"></div><div><div class="brand-name">SMAI</div><div class="brand-tag">Calling Platform</div></div></div>
     <div class="hero-text">BUILD<br/>YOUR<br/><span class="accent">AI&nbsp;FLEET</span></div>
     <p class="hero-sub">Multi-tenant AI calling infrastructure — design flows, launch campaigns, manage queues. One platform, infinite agents.</p>
-    <div class="feature-tags">
-      <div class="tag">Flow Builder</div>
-      <div class="tag">IVR System</div>
-      <div class="tag">Predictive Dialer</div>
-      <div class="tag">Live Queue</div>
-      <div class="tag">Dispositions</div>
-    </div>
+    <div class="feature-tags"><div class="tag">Flow Builder</div><div class="tag">IVR System</div><div class="tag">Predictive Dialer</div><div class="tag">Live Queue</div><div class="tag">Dispositions</div></div>
   </div>
   <div class="auth-right">
     <div class="auth-box">
       <div class="auth-box-label" id="auth-box-label">— Sign In</div>
       <h2 id="auth-title">Welcome back</h2>
-      <div id="name-field" class="field hidden">
-        <label>Full Name</label>
-        <input type="text" id="auth-name" placeholder="John Doe"/>
-      </div>
-      <div id="company-field" class="field hidden">
-        <label>Company</label>
-        <input type="text" id="auth-company" placeholder="SmartTech Solutions"/>
-      </div>
-      <div class="field">
-        <label>Email Address</label>
-        <input type="email" id="auth-email" placeholder="you@company.com"/>
-      </div>
-      <div class="field">
-        <label>Password</label>
-        <input type="password" id="auth-password" placeholder="********"/>
-      </div>
+      <div id="name-field" class="field hidden"><label>Full Name</label><input type="text" id="auth-name" placeholder="John Doe"/></div>
+      <div id="company-field" class="field hidden"><label>Company</label><input type="text" id="auth-company" placeholder="SmartTech Solutions"/></div>
+      <div class="field"><label>Email Address</label><input type="email" id="auth-email" placeholder="you@company.com"/></div>
+      <div class="field"><label>Password</label><input type="password" id="auth-password" placeholder="********"/></div>
       <button class="btn-primary" id="auth-submit-btn" onclick="handleAuth()">Sign In</button>
-      <div class="auth-switch">
-        <span id="auth-switch-text">No account yet?</span>
-        <span onclick="toggleAuth()" id="auth-switch-link">Create one</span>
-      </div>
+      <div class="auth-switch"><span id="auth-switch-text">No account yet?</span> <span onclick="toggleAuth()" id="auth-switch-link">Create one</span></div>
       <div class="auth-err" id="auth-error"></div>
     </div>
   </div>
 </div>
 
-<!-- ============ APP SHELL ============ -->
 <div id="app-screen" class="hidden">
-
   <div class="sidebar">
-    <div class="sidebar-brand">
-      <div class="brand-box"></div>
-      <div class="brand-name">SMAI</div>
-    </div>
+    <div class="sidebar-brand"><div class="brand-box"></div><div class="brand-name">SMAI</div></div>
     <div class="nav">
       <div class="nav-section-label">Overview</div>
       <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')"><span class="ico">&#9635;</span> Dashboard</div>
-
       <div class="nav-section-label">Build</div>
       <div class="nav-item" data-page="agents" onclick="showPage('agents')"><span class="ico">&#9678;</span> AI Agents</div>
       <div class="nav-item" data-page="flows" onclick="showPage('flows')"><span class="ico">&#8997;</span> Flow Builder</div>
       <div class="nav-item" data-page="ivr" onclick="showPage('ivr')"><span class="ico">&#9742;</span> IVR Menus</div>
       <div class="nav-item" data-page="dispositions" onclick="showPage('dispositions')"><span class="ico">&#9672;</span> Dispositions</div>
-
       <div class="nav-section-label">Telephony</div>
       <div class="nav-item" data-page="telephony" onclick="showPage('telephony')"><span class="ico">&#9742;</span> Trunks &amp; Numbers</div>
-
       <div class="nav-section-label">Operate</div>
       <div class="nav-item" data-page="campaigns" onclick="showPage('campaigns')"><span class="ico">&#9654;</span> Campaigns</div>
       <div class="nav-item" data-page="calls" onclick="showPage('calls')"><span class="ico">&#8981;</span> Call Logs</div>
       <div class="nav-item" data-page="reports" onclick="showPage('reports')"><span class="ico">&#9776;</span> Reports</div>
+      <div class="nav-item" data-page="recordings" onclick="showPage('recordings')"><span class="ico">&#127911;</span> Recordings</div>
       <div class="nav-item" data-page="dnd" onclick="showPage('dnd')"><span class="ico">&#8856;</span> DND List</div>
+      <div class="nav-section-label" id="nav-admin-label">Administration</div>
+      <div class="nav-item" id="nav-team" data-page="team" onclick="showPage('team')"><span class="ico">&#128101;</span> Team</div>
+      <div class="nav-item" id="nav-orgs" data-page="organizations" onclick="showPage('organizations')"><span class="ico">&#127970;</span> Organizations</div>
     </div>
     <div class="sidebar-foot">
-      <div class="user-card">
-        <div class="user-avatar" id="user-avatar">A</div>
-        <div class="user-meta">
-          <div class="nm" id="user-name">User</div>
-          <div class="em" id="user-email">user@email.com</div>
-        </div>
-      </div>
+      <div class="user-card"><div class="user-avatar" id="user-avatar">A</div><div class="user-meta"><div class="nm" id="user-name">User</div><div class="em" id="user-email">user@email.com</div></div></div>
       <button class="btn-logout" onclick="logout()">&rarr; Sign Out</button>
     </div>
   </div>
@@ -102,97 +65,54 @@
       <div class="topbar-title" id="topbar-title">Dashboard</div>
       <div class="topbar-crumb">SMAI <span class="sep">/</span> <span id="topbar-crumb-page">Dashboard</span></div>
     </div>
-
     <div class="content">
 
-      <!-- ===== DASHBOARD ===== -->
       <div id="page-dashboard" class="page active">
-        <div class="page-head">
-          <div><h1>Dashboard</h1><p>Real-time overview of your AI calling operations</p></div>
-        </div>
+        <div class="page-head"><div><h1>Dashboard</h1><p>Real-time overview of your AI calling operations</p></div></div>
         <div class="stat-row">
           <div class="stat-box"><div class="stat-label">Total Calls</div><div class="stat-val" id="s-total">0</div><div class="stat-foot badge badge-blue">All Time</div></div>
           <div class="stat-box"><div class="stat-label">Interested</div><div class="stat-val" id="s-interested">0</div><div class="stat-foot badge badge-green">Qualified</div></div>
           <div class="stat-box"><div class="stat-label">Transferred</div><div class="stat-val" id="s-transferred">0</div><div class="stat-foot badge badge-purple">To Agent</div></div>
           <div class="stat-box"><div class="stat-label">Avg Duration</div><div class="stat-val" id="s-duration">0s</div><div class="stat-foot badge badge-orange">Per Call</div></div>
         </div>
-        <div class="panel">
-          <div class="panel-head"><div class="panel-title">&#11044; Live Calls</div><span class="badge badge-green">System Active</span></div>
-          <div class="panel-body">
-            <div class="empty"><div class="ico">&#128225;</div><div class="ttl">No active calls right now</div><div class="sub">Launch a campaign to start seeing live call activity here</div></div>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-head"><div class="panel-title">Quick Stats &mdash; Active Campaigns</div></div>
-          <div class="panel-body" id="dash-campaigns-mini">
-            <div class="empty"><div class="ico">&#128226;</div><div class="ttl">No campaigns running</div></div>
-          </div>
-        </div>
+        <div class="panel"><div class="panel-head"><div class="panel-title">&#11044; Live Calls</div><span class="badge badge-green">System Active</span></div>
+          <div class="panel-body"><div class="empty"><div class="ico">&#128225;</div><div class="ttl">No active calls right now</div><div class="sub">Launch a campaign to start seeing live call activity here</div></div></div></div>
+        <div class="panel"><div class="panel-head"><div class="panel-title">Quick Stats &mdash; Active Campaigns</div></div>
+          <div class="panel-body" id="dash-campaigns-mini"><div class="empty"><div class="ico">&#128226;</div><div class="ttl">No campaigns running</div></div></div></div>
       </div>
 
-      <!-- ===== AGENTS ===== -->
       <div id="page-agents" class="page">
-        <div class="page-head">
-          <div><h1>AI Agents</h1><p>Create voice agents with custom personality and prompts</p></div>
-          <button class="btn" onclick="openAgentModal()">+ New Agent</button>
-        </div>
-        <div class="card-grid" id="agents-grid">
-          <div class="empty"><div class="ico">&#9678;</div><div class="ttl">No agents yet</div><div class="sub">Create your first AI agent to get started</div></div>
-        </div>
+        <div class="page-head"><div><h1>AI Agents</h1><p>Create voice agents with custom personality, prompts, and your own API keys</p></div><button class="btn" onclick="openAgentModal()">+ New Agent</button></div>
+        <div class="card-grid" id="agents-grid"><div class="empty"><div class="ico">&#9678;</div><div class="ttl">No agents yet</div><div class="sub">Create your first AI agent to get started</div></div></div>
       </div>
 
-      <!-- ===== FLOWS ===== -->
       <div id="page-flows" class="page">
-        <div class="page-head">
-          <div><h1>Flow Builder</h1><p>Design conversation flows that agents and campaigns follow</p></div>
-          <button class="btn" onclick="openFlowModal()">+ New Flow</button>
-        </div>
-        <div class="card-grid" id="flows-grid">
-          <div class="empty"><div class="ico">&#8997;</div><div class="ttl">No flows yet</div><div class="sub">Build a flow to define call logic</div></div>
-        </div>
+        <div class="page-head"><div><h1>Flow Builder</h1><p>Design conversation flows with drag-and-drop nodes and connections</p></div><button class="btn" onclick="openFlowModal()">+ New Flow</button></div>
+        <div class="card-grid" id="flows-grid"><div class="empty"><div class="ico">&#8997;</div><div class="ttl">No flows yet</div><div class="sub">Build a flow to define call logic</div></div></div>
       </div>
 
-      <!-- ===== IVR ===== -->
       <div id="page-ivr" class="page">
-        <div class="page-head">
-          <div><h1>IVR Menus</h1><p>Interactive voice response menus for inbound calls</p></div>
-          <button class="btn" onclick="openIvrModal()">+ New IVR Menu</button>
-        </div>
-        <div class="card-grid" id="ivr-grid">
-          <div class="empty"><div class="ico">&#9742;</div><div class="ttl">No IVR menus yet</div><div class="sub">Create a menu with keypad options</div></div>
-        </div>
+        <div class="page-head"><div><h1>IVR Menus</h1><p>Interactive voice response menus for inbound calls</p></div><button class="btn" onclick="openIvrModal()">+ New IVR Menu</button></div>
+        <div class="card-grid" id="ivr-grid"><div class="empty"><div class="ico">&#9742;</div><div class="ttl">No IVR menus yet</div><div class="sub">Create a menu with keypad options</div></div></div>
       </div>
 
-      <!-- ===== DISPOSITIONS ===== -->
       <div id="page-dispositions" class="page">
-        <div class="page-head">
-          <div><h1>Dispositions</h1><p>Define call outcomes and sub-outcomes for reporting</p></div>
-          <button class="btn" onclick="openDispoModal()">+ New Disposition</button>
-        </div>
-        <div class="panel">
-          <table>
-            <thead><tr><th>Name</th><th>Color</th><th>Sub-Dispositions</th><th>Actions</th></tr></thead>
-            <tbody id="dispo-table"><tr><td colspan="4" style="text-align:center;padding:40px;color:var(--ink-soft)">No dispositions configured</td></tr></tbody>
-          </table>
-        </div>
+        <div class="page-head"><div><h1>Dispositions</h1><p>Define call outcomes and sub-outcomes for reporting</p></div><button class="btn" onclick="openDispoModal()">+ New Disposition</button></div>
+        <div class="panel"><table><thead><tr><th>Name</th><th>Color</th><th>Sub-Dispositions</th><th>Actions</th></tr></thead>
+        <tbody id="dispo-table"><tr><td colspan="4" style="text-align:center;padding:40px;color:var(--ink-soft)">No dispositions configured</td></tr></tbody></table></div>
       </div>
 
-      <!-- ===== TELEPHONY ===== -->
       <div id="page-telephony" class="page">
-        <div class="page-head">
-          <div><h1>Telephony</h1><p>Manage SIP trunks, DID numbers, and call routing</p></div>
-        </div>
+        <div class="page-head"><div><h1>Telephony</h1><p>Manage SIP trunks, DID numbers, and call routing (FreeSWITCH or Asterisk)</p></div></div>
         <div class="sub-tabs">
           <button class="sub-tab-btn active" onclick="showTelSubPage('trunks')">Trunks</button>
           <button class="sub-tab-btn" onclick="showTelSubPage('numbers')">DID Numbers</button>
           <button class="sub-tab-btn" onclick="showTelSubPage('routes')">Routing</button>
         </div>
-
         <div id="tel-trunks" class="sub-page active">
           <div class="page-head" style="margin-bottom:16px"><div></div><button class="btn" onclick="openTrunkModal()">+ Add Trunk</button></div>
-          <div id="trunks-list"><div class="empty"><div class="ico">&#9742;</div><div class="ttl">No trunks configured</div><div class="sub">Add a FreeSWITCH or Asterisk SIP trunk to start routing calls</div></div></div>
+          <div id="trunks-list"><div class="empty"><div class="ico">&#9742;</div><div class="ttl">No trunks configured</div></div></div>
         </div>
-
         <div id="tel-numbers" class="sub-page">
           <div class="num-bulk-row">
             <div class="field"><label>Assign to Trunk</label><select id="num-bulk-trunk"></select></div>
@@ -205,26 +125,28 @@
             <input type="text" id="num-single-label" placeholder="Label (optional)" style="flex:1;padding:10px;border:1px solid var(--line);border-radius:4px;font-family:inherit"/>
             <button class="btn-outline btn-sm" onclick="addSingleNumber()">+ Add Single Number</button>
           </div>
-          <div class="panel">
-            <table>
-              <thead><tr><th>Number</th><th>Label</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody id="numbers-table"><tr><td colspan="5" style="text-align:center;padding:40px;color:var(--ink-soft)">No numbers added yet</td></tr></tbody>
-            </table>
-          </div>
+          <div class="panel"><table><thead><tr><th>Number</th><th>Label</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="numbers-table"><tr><td colspan="5" style="text-align:center;padding:40px;color:var(--ink-soft)">No numbers added yet</td></tr></tbody></table></div>
         </div>
-
         <div id="tel-routes" class="sub-page">
           <div class="page-head" style="margin-bottom:16px"><div></div><button class="btn" onclick="openRouteModal()">+ Add Route</button></div>
-          <div class="panel">
-            <table>
-              <thead><tr><th>Direction</th><th>Trunk</th><th>DID</th><th>Destination</th><th>Priority</th><th>Actions</th></tr></thead>
-              <tbody id="routes-table"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--ink-soft)">No routes configured</td></tr></tbody>
-            </table>
-          </div>
+          <div class="panel"><table><thead><tr><th>Direction</th><th>Trunk</th><th>DID</th><th>Destination</th><th>Priority</th><th>Actions</th></tr></thead>
+          <tbody id="routes-table"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--ink-soft)">No routes configured</td></tr></tbody></table></div>
         </div>
       </div>
 
-      <!-- ===== REPORTS ===== -->
+      <div id="page-campaigns" class="page">
+        <div class="page-head"><div><h1>Campaigns</h1><p>Launch and manage your calling campaigns</p></div><button class="btn" onclick="openCampaignModal()">+ New Campaign</button></div>
+        <div class="panel"><table><thead><tr><th>Name</th><th>Mode</th><th>CPS</th><th>Queue</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="campaigns-table"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--ink-soft)">No campaigns yet</td></tr></tbody></table></div>
+      </div>
+
+      <div id="page-calls" class="page">
+        <div class="page-head"><div><h1>Call Logs</h1><p>Complete history of all AI calls</p></div></div>
+        <div class="panel"><table><thead><tr><th>Phone</th><th>Outcome</th><th>Duration</th><th>Date</th></tr></thead>
+        <tbody id="calls-table"><tr><td colspan="4" style="text-align:center;padding:40px;color:var(--ink-soft)">No calls logged yet</td></tr></tbody></table></div>
+      </div>
+
       <div id="page-reports" class="page">
         <div class="page-head"><div><h1>Reports</h1><p>Analytics across calls, campaigns, agents, and numbers</p></div></div>
         <div class="report-tabs-row">
@@ -234,153 +156,91 @@
           <div class="report-tab" onclick="showReport('by-agent')">Agent-wise</div>
           <div class="report-tab" onclick="showReport('by-campaign')">Campaign-wise</div>
           <div class="report-tab" onclick="showReport('by-number')">Number-wise</div>
-          <div class="report-tab" onclick="showReport('recordings')">Recordings</div>
         </div>
-
         <div id="report-cdr-filters" class="report-filters">
           <div class="field"><label>Phone</label><input type="text" id="rf-phone" placeholder="Search number"/></div>
-          <div class="field"><label>Outcome</label>
-            <select id="rf-outcome"><option value="">All</option><option value="INTERESTED">Interested</option><option value="TRANSFER">Transfer</option><option value="NOT_INTERESTED">Not Interested</option></select>
-          </div>
+          <div class="field"><label>Outcome</label><select id="rf-outcome"><option value="">All</option><option value="INTERESTED">Interested</option><option value="TRANSFER">Transfer</option><option value="NOT_INTERESTED">Not Interested</option></select></div>
           <button class="btn btn-sm" onclick="loadReport()">Filter</button>
         </div>
-
         <div class="panel"><div class="panel-body" id="report-output"><div class="empty"><div class="ico">&#9776;</div><div class="ttl">Select a report above</div></div></div></div>
       </div>
 
-      <!-- ===== CAMPAIGNS ===== -->
-      <div id="page-campaigns" class="page">
-        <div class="page-head">
-          <div><h1>Campaigns</h1><p>Launch and manage your calling campaigns</p></div>
-          <button class="btn" onclick="openCampaignModal()">+ New Campaign</button>
+      <div id="page-recordings" class="page">
+        <div class="page-head"><div><h1>Recordings</h1><p>Search, tag, and manage call recordings</p></div></div>
+        <div class="report-filters">
+          <div class="field"><label>Phone</label><input type="text" id="rec-phone" placeholder="Search number"/></div>
+          <div class="field"><label>Category</label><select id="rec-category"><option value="">All</option><option value="general">General</option><option value="sales">Sales</option><option value="support">Support</option><option value="complaint">Complaint</option></select></div>
+          <button class="btn btn-sm" onclick="loadRecordings()">Search</button>
         </div>
-        <div class="panel">
-          <table>
-            <thead><tr><th>Name</th><th>Mode</th><th>CPS</th><th>Queue</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody id="campaigns-table"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--ink-soft)">No campaigns yet</td></tr></tbody>
-          </table>
-        </div>
+        <div class="panel"><div class="panel-body" id="recordings-output"><div class="empty"><div class="ico">&#127911;</div><div class="ttl">No recordings found</div></div></div></div>
       </div>
 
-      <!-- ===== CALLS ===== -->
-      <div id="page-calls" class="page">
-        <div class="page-head"><div><h1>Call Logs</h1><p>Complete history of all AI calls</p></div></div>
-        <div class="panel">
-          <table>
-            <thead><tr><th>Phone</th><th>Outcome</th><th>Duration</th><th>Date</th></tr></thead>
-            <tbody id="calls-table"><tr><td colspan="4" style="text-align:center;padding:40px;color:var(--ink-soft)">No calls logged yet</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- ===== DND ===== -->
       <div id="page-dnd" class="page">
         <div class="page-head"><div><h1>DND List</h1><p>Numbers excluded from all calling campaigns</p></div></div>
-        <div class="panel">
-          <div class="panel-body">
-            <div class="empty"><div class="ico">&#8856;</div><div class="ttl">DND list is empty</div><div class="sub">Numbers added to DND inside campaigns will appear here</div></div>
-          </div>
-        </div>
+        <div class="panel"><div class="panel-body"><div class="empty"><div class="ico">&#8856;</div><div class="ttl">DND list is empty</div></div></div></div>
+      </div>
+
+      <div id="page-team" class="page">
+        <div class="page-head"><div><h1>Team</h1><p>Manage who has access to your organization, with granular permissions</p></div><button class="btn" onclick="openTeamModal()">+ Invite Member</button></div>
+        <div class="panel"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+        <tbody id="team-table"><tr><td colspan="6" style="text-align:center;padding:40px;color:var(--ink-soft)">Loading team...</td></tr></tbody></table></div>
+      </div>
+
+      <div id="page-organizations" class="page">
+        <div class="page-head"><div><h1>Organizations</h1><p>All client organizations on the platform</p></div></div>
+        <div class="panel"><table><thead><tr><th>Organization</th><th>Plan</th><th>Users</th><th>Agents</th><th>Calls</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="orgs-table"><tr><td colspan="7" style="text-align:center;padding:40px;color:var(--ink-soft)">Loading organizations...</td></tr></tbody></table></div>
       </div>
 
     </div>
   </div>
 </div>
 
-<!-- ============ MODALS ============ -->
-
-<!-- Agent Modal -->
 <div id="agent-modal" class="modal-overlay hidden">
   <div class="modal modal-lg">
     <div class="modal-head"><h3>Create AI Agent</h3><button class="modal-close" onclick="closeModal('agent-modal')">&times;</button></div>
     <div class="modal-body">
       <div class="field"><label>Agent Name</label><input type="text" id="ag-name" placeholder="Sales Agent - Nayan"/></div>
       <div class="field-row">
-        <div class="field"><label>Voice</label>
-          <select id="ag-voice"><option value="alloy">Alloy</option><option value="echo">Echo</option><option value="onyx">Onyx</option><option value="nova">Nova</option></select>
-        </div>
+        <div class="field"><label>Voice</label><select id="ag-voice"></select></div>
         <div class="field"><label>Language</label>
-          <select id="ag-language"><option value="hinglish">Hinglish</option><option value="english">English</option><option value="hindi">Hindi</option></select>
+          <select id="ag-language">
+            <option value="hinglish">Hinglish</option><option value="english">English</option><option value="hindi">Hindi</option>
+            <option value="tamil">Tamil</option><option value="telugu">Telugu</option><option value="kannada">Kannada</option>
+            <option value="malayalam">Malayalam</option><option value="bengali">Bengali</option><option value="marathi">Marathi</option>
+            <option value="gujarati">Gujarati</option><option value="punjabi">Punjabi</option><option value="odia">Odia</option>
+            <option value="urdu">Urdu</option><option value="spanish">Spanish</option><option value="french">French</option>
+            <option value="arabic">Arabic</option><option value="portuguese">Portuguese</option>
+          </select>
         </div>
       </div>
-      <div class="field">
-        <label>AI Provider</label>
-        <div class="provider-grid" id="ag-provider-grid"></div>
-        <input type="hidden" id="ag-provider" value="groq"/>
+      <div class="field"><label>AI Provider</label><div class="provider-grid" id="ag-provider-grid"></div><input type="hidden" id="ag-provider" value="groq"/></div>
+      <div class="field byoai-box">
+        <label>API Key <span id="ag-key-status" class="badge badge-gray" style="margin-left:6px">missing</span></label>
+        <div class="inline-flex">
+          <input type="password" id="ag-api-key" placeholder="Paste your provider API key" style="flex:1"/>
+          <button class="btn-outline btn-sm" type="button" onclick="testAgentKey()">Test Key</button>
+        </div>
+        <p class="help-text" id="ag-key-hint">Your key is encrypted and stored only for this agent.</p>
+        <div id="ag-test-result" class="help-text" style="margin-top:4px"></div>
       </div>
-      <div class="field"><label>System Prompt</label><textarea id="ag-prompt" placeholder="You are Nayan, a professional sales executive for SmartTech Solutions. Keep replies short..."></textarea></div>
+      <div class="field"><label>System Prompt</label><textarea id="ag-prompt" placeholder="You are Nayan, a professional sales executive..."></textarea></div>
     </div>
     <div class="modal-foot"><button class="btn-outline" onclick="closeModal('agent-modal')">Cancel</button><button class="btn" onclick="createAgent()">Create Agent</button></div>
   </div>
 </div>
 
-<!-- Trunk Modal -->
-<div id="trunk-modal" class="modal-overlay hidden">
-  <div class="modal">
-    <div class="modal-head"><h3>Add SIP Trunk</h3><button class="modal-close" onclick="closeModal('trunk-modal')">&times;</button></div>
-    <div class="modal-body">
-      <div class="field"><label>Trunk Name</label><input type="text" id="tr-name" placeholder="Primary Trunk - Airtel"/></div>
-      <div class="field"><label>Server Type</label>
-        <select id="tr-server-type"><option value="freeswitch">FreeSWITCH</option><option value="asterisk">Asterisk</option></select>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>SIP Host</label><input type="text" id="tr-host" placeholder="sip.provider.com"/></div>
-        <div class="field"><label>Port</label><input type="number" id="tr-port" value="5060"/></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>SIP Username</label><input type="text" id="tr-user" placeholder="trunk_user"/></div>
-        <div class="field"><label>SIP Password</label><input type="password" id="tr-pass" placeholder="••••••••"/></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>Transport</label><select id="tr-transport"><option value="udp">UDP</option><option value="tcp">TCP</option><option value="tls">TLS</option></select></div>
-        <div class="field"><label>Max Channels</label><input type="number" id="tr-max-channels" value="10"/></div>
-      </div>
-      <div class="field inline-flex"><label style="margin:0">Register with provider</label><label class="switch"><input type="checkbox" id="tr-register" checked/><span class="slider"></span></label></div>
-    </div>
-    <div class="modal-foot"><button class="btn-outline" onclick="closeModal('trunk-modal')">Cancel</button><button class="btn" onclick="createTrunk()">Add Trunk</button></div>
-  </div>
-</div>
-
-<!-- Route Modal -->
-<div id="route-modal" class="modal-overlay hidden">
-  <div class="modal">
-    <div class="modal-head"><h3>Add Route</h3><button class="modal-close" onclick="closeModal('route-modal')">&times;</button></div>
-    <div class="modal-body">
-      <div class="field"><label>Direction</label>
-        <select id="rt-direction" onchange="toggleRouteFields()"><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select>
-      </div>
-      <div class="field"><label>Trunk</label><select id="rt-trunk"></select></div>
-      <div class="field" id="rt-did-field"><label>DID Number (inbound)</label><select id="rt-did"></select></div>
-      <div class="field" id="rt-dest-field"><label>Destination (inbound)</label>
-        <select id="rt-dest-type"><option value="ivr">IVR Menu</option><option value="agent">AI Agent (direct)</option></select>
-        <select id="rt-dest-id" style="margin-top:8px"></select>
-      </div>
-      <div class="field"><label>Priority</label><input type="number" id="rt-priority" value="1" min="1"/></div>
-    </div>
-    <div class="modal-foot"><button class="btn-outline" onclick="closeModal('route-modal')">Cancel</button><button class="btn" onclick="createRoute()">Add Route</button></div>
-  </div>
-</div>
-
-<!-- Flow Modal -->
 <div id="flow-modal" class="modal-overlay hidden">
-  <div class="modal modal-lg">
+  <div class="modal" style="max-width:1100px;width:95vw">
     <div class="modal-head"><h3>Flow Builder</h3><button class="modal-close" onclick="closeModal('flow-modal')">&times;</button></div>
-    <div class="modal-body">
+    <div class="modal-body" style="padding:16px">
       <div class="field"><label>Flow Name</label><input type="text" id="fl-name" placeholder="Standard Sales Flow"/></div>
-      <div class="flow-canvas" id="flow-canvas"></div>
-      <div class="flow-add-row">
-        <button class="btn-sm btn-outline" onclick="addFlowNode('Greeting')">+ Greeting</button>
-        <button class="btn-sm btn-outline" onclick="addFlowNode('Question')">+ Question</button>
-        <button class="btn-sm btn-outline" onclick="addFlowNode('Condition')">+ Condition</button>
-        <button class="btn-sm btn-outline" onclick="addFlowNode('Transfer')">+ Transfer</button>
-        <button class="btn-sm btn-outline" onclick="addFlowNode('Hangup')">+ Hangup</button>
-      </div>
+      <div id="fb-container"></div>
     </div>
     <div class="modal-foot"><button class="btn-outline" onclick="closeModal('flow-modal')">Cancel</button><button class="btn" onclick="createFlow()">Save Flow</button></div>
   </div>
 </div>
 
-<!-- IVR Modal -->
 <div id="ivr-modal" class="modal-overlay hidden">
   <div class="modal">
     <div class="modal-head"><h3>Create IVR Menu</h3><button class="modal-close" onclick="closeModal('ivr-modal')">&times;</button></div>
@@ -393,7 +253,6 @@
   </div>
 </div>
 
-<!-- Disposition Modal -->
 <div id="dispo-modal" class="modal-overlay hidden">
   <div class="modal">
     <div class="modal-head"><h3>New Disposition</h3><button class="modal-close" onclick="closeModal('dispo-modal')">&times;</button></div>
@@ -402,19 +261,46 @@
         <div class="field"><label>Disposition Name</label><input type="text" id="dp-name" placeholder="Interested"/></div>
         <div class="field"><label>Color</label><input type="color" id="dp-color" value="#FF6B00" style="height:38px;padding:4px"/></div>
       </div>
-      <div class="field"><label>Sub-Dispositions (comma separated)</label><input type="text" id="dp-subs" placeholder="Callback requested, Wants demo, Price sensitive"/></div>
+      <div class="field"><label>Sub-Dispositions (comma separated)</label><input type="text" id="dp-subs" placeholder="Callback requested, Wants demo"/></div>
     </div>
     <div class="modal-foot"><button class="btn-outline" onclick="closeModal('dispo-modal')">Cancel</button><button class="btn" onclick="createDispo()">Create</button></div>
   </div>
 </div>
 
-<!-- Campaign Modal (nested config) -->
+<div id="trunk-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><h3>Add SIP Trunk</h3><button class="modal-close" onclick="closeModal('trunk-modal')">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Trunk Name</label><input type="text" id="tr-name" placeholder="Primary Trunk - Airtel"/></div>
+      <div class="field"><label>Server Type</label><select id="tr-server-type"><option value="freeswitch">FreeSWITCH</option><option value="asterisk">Asterisk</option></select></div>
+      <div class="field-row"><div class="field"><label>SIP Host</label><input type="text" id="tr-host" placeholder="sip.provider.com"/></div><div class="field"><label>Port</label><input type="number" id="tr-port" value="5060"/></div></div>
+      <div class="field-row"><div class="field"><label>SIP Username</label><input type="text" id="tr-user"/></div><div class="field"><label>SIP Password</label><input type="password" id="tr-pass"/></div></div>
+      <div class="field-row"><div class="field"><label>Transport</label><select id="tr-transport"><option value="udp">UDP</option><option value="tcp">TCP</option><option value="tls">TLS</option></select></div><div class="field"><label>Max Channels</label><input type="number" id="tr-max-channels" value="10"/></div></div>
+      <div class="field inline-flex"><label style="margin:0">Register with provider</label><label class="switch"><input type="checkbox" id="tr-register" checked/><span class="slider"></span></label></div>
+    </div>
+    <div class="modal-foot"><button class="btn-outline" onclick="closeModal('trunk-modal')">Cancel</button><button class="btn" onclick="createTrunk()">Add Trunk</button></div>
+  </div>
+</div>
+
+<div id="route-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><h3>Add Route</h3><button class="modal-close" onclick="closeModal('route-modal')">&times;</button></div>
+    <div class="modal-body">
+      <div class="field"><label>Direction</label><select id="rt-direction" onchange="toggleRouteFields()"><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></div>
+      <div class="field"><label>Trunk</label><select id="rt-trunk"></select></div>
+      <div class="field" id="rt-did-field"><label>DID Number (inbound)</label><select id="rt-did"></select></div>
+      <div class="field" id="rt-dest-field"><label>Destination (inbound)</label><select id="rt-dest-type"><option value="ivr">IVR Menu</option><option value="agent">AI Agent (direct)</option></select><select id="rt-dest-id" style="margin-top:8px"></select></div>
+      <div class="field"><label>Priority</label><input type="number" id="rt-priority" value="1" min="1"/></div>
+    </div>
+    <div class="modal-foot"><button class="btn-outline" onclick="closeModal('route-modal')">Cancel</button><button class="btn" onclick="createRoute()">Add Route</button></div>
+  </div>
+</div>
+
 <div id="campaign-modal" class="modal-overlay hidden">
   <div class="modal modal-lg">
     <div class="modal-head"><h3>New Campaign</h3><button class="modal-close" onclick="closeModal('campaign-modal')">&times;</button></div>
     <div class="modal-body">
       <div class="field"><label>Campaign Name</label><input type="text" id="cm-name" placeholder="June Sales Drive"/></div>
-
       <div class="field"><label>Calling Mode</label>
         <div class="pill-group" id="cm-mode-group">
           <div class="pill active" data-mode="preview" onclick="selectMode('preview')">Preview<span class="pill-sub">Agent reviews before dial</span></div>
@@ -422,65 +308,67 @@
           <div class="pill" data-mode="manual" onclick="selectMode('manual')">Manual<span class="pill-sub">Click-to-call only</span></div>
         </div>
       </div>
-
       <div class="field-row" style="margin-top:14px">
         <div class="field"><label>CPS (Calls Per Second)</label><input type="number" id="cm-cps" value="1" min="1" max="20"/></div>
-        <div class="field"><label>Status</label>
-          <select id="cm-status"><option value="draft">Draft</option><option value="active">Active</option><option value="paused">Paused</option></select>
-        </div>
+        <div class="field"><label>Status</label><select id="cm-status"><option value="draft">Draft</option><option value="active">Active</option><option value="paused">Paused</option></select></div>
       </div>
-
       <hr class="section-divider"/>
-
       <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('tab-agent')">Agent &amp; Flow</button>
         <button class="tab-btn" onclick="switchTab('tab-leads')">Leads &amp; Queue</button>
         <button class="tab-btn" onclick="switchTab('tab-schedule')">Schedule &amp; DND</button>
       </div>
-
       <div id="tab-agent" class="tab-content active">
         <div class="field-row">
-          <div class="field">
-            <label>Assign AI Agent</label>
-            <select id="cm-agent" onchange="checkNewAgentOption(this)"></select>
-          </div>
+          <div class="field"><label>Assign AI Agent</label><select id="cm-agent" onchange="checkNewAgentOption(this)"></select></div>
           <div class="field"><label>Assign Flow</label><select id="cm-flow"><option value="">- None -</option></select></div>
         </div>
         <div class="field-row">
           <div class="field"><label>Assign IVR (optional)</label><select id="cm-ivr"><option value="">- None -</option></select></div>
-          <div class="field"><label>Assign Trunk (for outbound calls)</label><select id="cm-trunk"><option value="">- None -</option></select></div>
+          <div class="field"><label>Assign Trunk (outbound)</label><select id="cm-trunk"><option value="">- None -</option></select></div>
         </div>
       </div>
-
       <div id="tab-leads" class="tab-content">
         <div class="field"><label>Upload Leads (CSV: phone,name)</label><input type="file" id="cm-leads-file" accept=".csv,.txt"/></div>
-        <p class="help-text">Upload after creating the campaign &mdash; leads attach to the queue automatically.</p>
+        <p class="help-text">Upload after creating the campaign — leads attach to the queue automatically.</p>
         <div class="queue-mini" style="margin-top:14px">
           <div class="qm-item"><div class="qm-val" id="cm-queue-pending">0</div><div class="qm-lbl">Pending</div></div>
           <div class="qm-item"><div class="qm-val" id="cm-queue-recycle">0</div><div class="qm-lbl">Recycle</div></div>
           <div class="qm-item"><div class="qm-val" id="cm-queue-dnd">0</div><div class="qm-lbl">DND'd</div></div>
         </div>
       </div>
-
       <div id="tab-schedule" class="tab-content">
-        <div class="field-row">
-          <div class="field"><label>Schedule Start</label><input type="time" id="cm-sched-start" value="09:00"/></div>
-          <div class="field"><label>Schedule End</label><input type="time" id="cm-sched-end" value="19:00"/></div>
-        </div>
-        <div class="field"><label>Add Number to DND</label>
-          <div class="inline-flex">
-            <input type="text" id="cm-dnd-input" placeholder="+919876543210" style="flex:1"/>
-            <button class="btn-sm btn-outline" onclick="addDndToCampaign()">Add</button>
-          </div>
-        </div>
+        <div class="field-row"><div class="field"><label>Schedule Start</label><input type="time" id="cm-sched-start" value="09:00"/></div><div class="field"><label>Schedule End</label><input type="time" id="cm-sched-end" value="19:00"/></div></div>
+        <div class="field"><label>Add Number to DND</label><div class="inline-flex"><input type="text" id="cm-dnd-input" placeholder="+919876543210" style="flex:1"/><button class="btn-sm btn-outline" onclick="addDndToCampaign()">Add</button></div></div>
         <div class="chip-list" id="cm-dnd-chips"></div>
       </div>
-
     </div>
     <div class="modal-foot"><button class="btn-outline" onclick="closeModal('campaign-modal')">Cancel</button><button class="btn" onclick="createCampaign()">Create Campaign</button></div>
   </div>
 </div>
 
+<div id="team-modal" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-head"><h3>Invite Team Member</h3><button class="modal-close" onclick="closeModal('team-modal')">&times;</button></div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field"><label>Full Name</label><input type="text" id="tm-name" placeholder="Priya Sharma"/></div>
+        <div class="field"><label>Email</label><input type="email" id="tm-email" placeholder="priya@company.com"/></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Temporary Password</label><input type="password" id="tm-password" placeholder="Min 6 characters"/></div>
+        <div class="field"><label>Role</label><select id="tm-role" onchange="applyRoleDefaultsToGrid()"><option value="agent">Agent</option><option value="manager">Manager</option></select></div>
+      </div>
+      <p class="help-text">Managers can only invite Agents. Only Admins can invite Managers.</p>
+      <hr class="section-divider"/>
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);margin-bottom:10px">Module Access</label>
+      <div id="permission-grid"></div>
+    </div>
+    <div class="modal-foot"><button class="btn-outline" onclick="closeModal('team-modal')">Cancel</button><button class="btn" onclick="inviteTeamMember()">Send Invite</button></div>
+  </div>
+</div>
+
+<script src="flowbuilder.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

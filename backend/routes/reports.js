@@ -3,11 +3,10 @@ const db = require('../db/schema');
 const auth = require('../middleware/auth');
 const router = express.Router();
 
-// ───────── CDR (Call Detail Record) — full log with filters ─────────
 router.get('/cdr', auth, (req, res) => {
   const { from, to, campaign_id, agent_id, outcome, phone, did_id, limit } = req.query;
-  let q = 'SELECT * FROM calls WHERE user_id=?';
-  const params = [req.user.id];
+  let q = 'SELECT * FROM calls WHERE org_id=?';
+  const params = [req.user.org_id];
 
   if (from)        { q += ' AND created_at >= ?'; params.push(from); }
   if (to)          { q += ' AND created_at <= ?'; params.push(to); }
@@ -23,7 +22,6 @@ router.get('/cdr', auth, (req, res) => {
   res.json(db.prepare(q).all(...params));
 });
 
-// ───────── DID-WISE REPORT ─────────
 router.get('/by-did', auth, (req, res) => {
   const rows = db.prepare(`
     SELECT
@@ -38,14 +36,13 @@ router.get('/by-did', auth, (req, res) => {
       SUM(c.duration) as total_duration
     FROM calls c
     LEFT JOIN did_numbers d ON c.did_id = d.id
-    WHERE c.user_id = ?
+    WHERE c.org_id = ?
     GROUP BY c.did_id
     ORDER BY total_calls DESC
-  `).all(req.user.id);
+  `).all(req.user.org_id);
   res.json(rows);
 });
 
-// ───────── DISPOSITION-WISE REPORT ─────────
 router.get('/by-disposition', auth, (req, res) => {
   const rows = db.prepare(`
     SELECT
@@ -57,14 +54,13 @@ router.get('/by-disposition', auth, (req, res) => {
       ROUND(AVG(c.duration),1) as avg_duration
     FROM calls c
     LEFT JOIN dispositions dp ON c.disposition_id = dp.id
-    WHERE c.user_id = ?
+    WHERE c.org_id = ?
     GROUP BY c.disposition_id, c.sub_disposition
     ORDER BY total_calls DESC
-  `).all(req.user.id);
+  `).all(req.user.org_id);
   res.json(rows);
 });
 
-// ───────── AGENT-WISE REPORT ─────────
 router.get('/by-agent', auth, (req, res) => {
   const rows = db.prepare(`
     SELECT
@@ -77,14 +73,13 @@ router.get('/by-agent', auth, (req, res) => {
       SUM(c.duration) as total_talk_time
     FROM calls c
     LEFT JOIN agents a ON c.agent_id = a.id
-    WHERE c.user_id = ?
+    WHERE c.org_id = ?
     GROUP BY c.agent_id
     ORDER BY total_calls DESC
-  `).all(req.user.id);
+  `).all(req.user.org_id);
   res.json(rows);
 });
 
-// ───────── CAMPAIGN-WISE REPORT ─────────
 router.get('/by-campaign', auth, (req, res) => {
   const rows = db.prepare(`
     SELECT
@@ -98,14 +93,13 @@ router.get('/by-campaign', auth, (req, res) => {
       ROUND(AVG(c.duration),1) as avg_duration
     FROM calls c
     LEFT JOIN campaigns cp ON c.campaign_id = cp.id
-    WHERE c.user_id = ?
+    WHERE c.org_id = ?
     GROUP BY c.campaign_id
     ORDER BY total_calls DESC
-  `).all(req.user.id);
+  `).all(req.user.org_id);
   res.json(rows);
 });
 
-// ───────── NUMBER-WISE REPORT (which phone numbers called/were called) ─────────
 router.get('/by-number', auth, (req, res) => {
   const rows = db.prepare(`
     SELECT
@@ -115,24 +109,12 @@ router.get('/by-number', auth, (req, res) => {
       MAX(created_at) as last_call_at,
       SUM(duration) as total_duration
     FROM calls
-    WHERE user_id = ? AND phone IS NOT NULL AND phone != ''
+    WHERE org_id = ? AND phone IS NOT NULL AND phone != ''
     GROUP BY phone
     ORDER BY total_calls DESC
     LIMIT 500
-  `).all(req.user.id);
+  `).all(req.user.org_id);
   res.json(rows);
-});
-
-// ───────── RECORDINGS — by lead/number/campaign ─────────
-router.get('/recordings', auth, (req, res) => {
-  const { phone, campaign_id, lead_id } = req.query;
-  let q = "SELECT id, phone, lead_id, campaign_id, recording_path, duration, outcome, created_at FROM calls WHERE user_id=? AND recording_path IS NOT NULL AND recording_path != ''";
-  const params = [req.user.id];
-  if (phone)       { q += ' AND phone = ?'; params.push(phone); }
-  if (campaign_id) { q += ' AND campaign_id = ?'; params.push(campaign_id); }
-  if (lead_id)      { q += ' AND lead_id = ?'; params.push(lead_id); }
-  q += ' ORDER BY created_at DESC LIMIT 200';
-  res.json(db.prepare(q).all(...params));
 });
 
 module.exports = router;

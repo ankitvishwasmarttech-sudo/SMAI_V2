@@ -3,19 +3,30 @@ const path = require('path');
 const db = new Database(path.join(__dirname, '../db/smai.db'));
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS organizations (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    plan TEXT DEFAULT 'starter',
+    status TEXT DEFAULT 'active',
+    created_by TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
+    org_id TEXT,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
-    role TEXT DEFAULT 'user',
-    company TEXT,
-    plan TEXT DEFAULT 'starter',
+    role TEXT DEFAULT 'admin',
+    permissions TEXT DEFAULT '[]',
+    status TEXT DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS flows (
     id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     nodes TEXT DEFAULT '[]',
@@ -25,15 +36,16 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS ivr_menus (
     id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     options TEXT DEFAULT '[]',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
-  -- ====== AGENTS — now with BYOAI: per-agent encrypted API key ======
   CREATE TABLE IF NOT EXISTS agents (
     id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     prompt TEXT NOT NULL,
@@ -49,6 +61,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS dispositions (
     id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     color TEXT DEFAULT '#6366f1',
@@ -58,6 +71,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS campaigns (
     id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     agent_id TEXT,
@@ -78,6 +92,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS calls (
     id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     campaign_id TEXT,
     agent_id TEXT,
@@ -97,6 +112,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS dnd_numbers (
     id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     phone TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -104,6 +120,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS trunks (
     id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
     server_type TEXT DEFAULT 'freeswitch',
@@ -120,6 +137,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS did_numbers (
     id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     trunk_id TEXT,
     number TEXT NOT NULL,
@@ -131,6 +149,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS routes (
     id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     trunk_id TEXT,
     did_id TEXT,
@@ -140,6 +159,29 @@ db.exec(`
     priority INTEGER DEFAULT 1,
     status TEXT DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS audit_logs (
+    id TEXT PRIMARY KEY,
+    org_id TEXT,
+    actor_user_id TEXT NOT NULL,
+    actor_role TEXT,
+    action TEXT NOT NULL,
+    target_type TEXT,
+    target_id TEXT,
+    details TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- ====== RECORDING METADATA — tags, notes, category, retention (separate from raw call row) ======
+  CREATE TABLE IF NOT EXISTS recording_meta (
+    call_id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    tags TEXT DEFAULT '[]',
+    notes TEXT DEFAULT '',
+    category TEXT DEFAULT 'general',
+    retention_days INTEGER DEFAULT 90,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 

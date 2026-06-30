@@ -1,24 +1,20 @@
 // ============================================================
-// SMAI V2 — Frontend Application Logic
+// SMAI — Complete Frontend Application
 // ============================================================
 
 let token = localStorage.getItem('smai_token');
 let user  = JSON.parse(localStorage.getItem('smai_user') || '{}');
 let isLogin = true;
 
-let agentsCache = [];
-let flowsCache = [];
-let ivrCache = [];
-let dispoCache = [];
-let campaignsCache = [];
-let trunksCache = [];
-let numbersCache = [];
-let flowNodes = [];
-let ivrOptions = [];
-let selectedMode = 'preview';
-let cmDndList = [];
+let agentsCache = [], flowsCache = [], ivrCache = [], dispoCache = [];
+let campaignsCache = [], trunksCache = [], numbersCache = [];
+let ivrOptions = [], selectedMode = 'preview', cmDndList = [];
+let editingAgentId = null, editingFlowId = null, editingIvrId = null;
+let editingDispoId = null, editingCampaignId = null, editingTrunkId = null;
+let providersCache = [], permissionCatalog = null, currentGridPerms = {};
+let fbInstance = null;
+let currentReport = 'cdr';
 
-// ── INIT ──────────────────────────────────────────────────────────────────
 if (token) { showApp(); loadEverything(); }
 
 // ── AUTH ──────────────────────────────────────────────────────────────────
@@ -68,6 +64,17 @@ function showApp() {
   document.getElementById('user-name').textContent = user.name || 'User';
   document.getElementById('user-email').textContent = user.email || '';
   document.getElementById('user-avatar').textContent = (user.name || 'U')[0].toUpperCase();
+  applyRoleVisibility();
+}
+
+function applyRoleVisibility() {
+  const role = user.role;
+  const navTeam = document.getElementById('nav-team');
+  const navOrgs = document.getElementById('nav-orgs');
+  const navAdminLabel = document.getElementById('nav-admin-label');
+  navTeam.style.display = (role === 'admin' || role === 'manager') ? 'flex' : 'none';
+  navOrgs.style.display = (role === 'super_admin') ? 'flex' : 'none';
+  navAdminLabel.style.display = (role === 'admin' || role === 'manager' || role === 'super_admin') ? 'block' : 'none';
 }
 
 function logout() {
@@ -77,7 +84,6 @@ function logout() {
   document.getElementById('auth-screen').classList.remove('hidden');
 }
 
-// ── API HELPER ────────────────────────────────────────────────────────────
 async function api(path, method = 'GET', body = null, isForm = false) {
   const headers = { 'Authorization': 'Bearer ' + token };
   if (!isForm) headers['Content-Type'] = 'application/json';
@@ -93,7 +99,7 @@ function showPage(page) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   document.querySelector(`.nav-item[data-page="${page}"]`).classList.add('active');
-  const titles = { dashboard:'Dashboard', agents:'AI Agents', flows:'Flow Builder', ivr:'IVR Menus', dispositions:'Dispositions', telephony:'Trunks & Numbers', campaigns:'Campaigns', calls:'Call Logs', reports:'Reports', dnd:'DND List' };
+  const titles = { dashboard:'Dashboard', agents:'AI Agents', flows:'Flow Builder', ivr:'IVR Menus', dispositions:'Dispositions', telephony:'Trunks & Numbers', campaigns:'Campaigns', calls:'Call Logs', reports:'Reports', recordings:'Recordings', dnd:'DND List', team:'Team', organizations:'Organizations' };
   document.getElementById('topbar-title').textContent = titles[page];
   document.getElementById('topbar-crumb-page').textContent = titles[page];
 
@@ -105,7 +111,9 @@ function showPage(page) {
   if (page === 'campaigns') loadCampaigns();
   if (page === 'calls') loadCalls();
   if (page === 'telephony') loadTelephony();
-  if (page === 'reports') { /* wait for tab click */ }
+  if (page === 'team') loadTeam();
+  if (page === 'organizations') loadOrganizations();
+  if (page === 'recordings') loadRecordings();
 }
 
 async function loadEverything() {
@@ -139,8 +147,19 @@ async function loadDashboard() {
   }
 }
 
-// ── AGENTS ────────────────────────────────────────────────────────────────
-let editingAgentId = null;
+// ── AGENTS (with BYOAI) ─────────────────────────────────────────────────
+const PROVIDER_VOICES = {
+  openai: ['alloy','echo','fable','onyx','nova','shimmer'],
+  gemini: ['Puck','Charon','Kore','Fenrir'],
+  groq: ['default (Groq pipeline — no native TTS voice)'],
+  claude: ['default (Claude pipeline — pair with a TTS provider)'],
+  nvidia: ['default'],
+  azure: ['alloy','echo','nova'],
+  elevenlabs: ['Rachel','Adam','Bella','Domi','Antoni','Elli'],
+  deepgram: ['default (STT only)'],
+  deepseek: ['default (pipeline)'],
+  grok: ['default (pipeline)'],
+};
 
 async function loadAgents() {
   agentsCache = await api('/api/agents');
@@ -157,6 +176,7 @@ async function loadAgents() {
       </div>
       <div class="entity-name">${a.name}</div>
       <div class="entity-meta">${a.provider} &middot; ${a.voice} &middot; ${a.language}</div>
+      <div class="entity-meta"><span class="badge ${a.key_status==='connected'?'key-status-connected':a.key_status==='invalid'?'key-status-invalid':'key-status-missing'}">API key: ${a.key_status||'missing'}</span></div>
       <div class="entity-actions">
         <button class="btn-ghost btn-sm" onclick="openAgentModal('${a.id}')">Edit</button>
         <button class="btn-ghost btn-sm" onclick="cloneAgent('${a.id}')">Clone</button>
@@ -166,47 +186,91 @@ async function loadAgents() {
   `).join('');
 }
 
-let providersCache = [];
-
 async function loadProviders() {
   if (providersCache.length) return providersCache;
   providersCache = await api('/api/agents/providers/list');
   return providersCache;
 }
 
-function openAgentModal(agentId) {
+async function openAgentModal(agentId) {
   editingAgentId = agentId || null;
   const agent = agentId ? agentsCache.find(a => a.id === agentId) : null;
 
   document.getElementById('ag-name').value = agent ? agent.name : '';
   document.getElementById('ag-prompt').value = agent ? agent.prompt : '';
-  document.getElementById('ag-voice').value = agent ? agent.voice : 'alloy';
   document.getElementById('ag-language').value = agent ? agent.language : 'hinglish';
   document.getElementById('ag-provider').value = agent ? agent.provider : 'groq';
+
+  const keyInput = document.getElementById('ag-api-key');
+  const statusBadge = document.getElementById('ag-key-status');
+  document.getElementById('ag-test-result').textContent = '';
+
+  if (agent && agent.key_status === 'connected') {
+    keyInput.value = '••••••••';
+    keyInput.placeholder = `Key on file (****${agent.api_key_last4 || ''})`;
+    statusBadge.textContent = 'connected'; statusBadge.className = 'badge key-status-connected';
+  } else if (agent && agent.key_status === 'invalid') {
+    keyInput.value = ''; keyInput.placeholder = 'Previous key failed — paste a new one';
+    statusBadge.textContent = 'invalid'; statusBadge.className = 'badge key-status-invalid';
+  } else {
+    keyInput.value = ''; keyInput.placeholder = 'Paste your provider API key';
+    statusBadge.textContent = 'missing'; statusBadge.className = 'badge key-status-missing';
+  }
 
   document.querySelector('#agent-modal .modal-head h3').textContent = agent ? 'Edit AI Agent' : 'Create AI Agent';
   document.querySelector('#agent-modal .modal-foot .btn:not(.btn-outline)').textContent = agent ? 'Save Changes' : 'Create Agent';
 
-  loadProviders().then(list => renderProviderGrid(list, agent ? agent.provider : 'groq'));
+  await loadProviders();
+  renderProviderGrid(providersCache, agent ? agent.provider : 'groq');
+  updateVoiceList(agent ? agent.provider : 'groq', agent ? agent.voice : null);
+  updateKeyHint(providersCache, agent ? agent.provider : 'groq');
   document.getElementById('agent-modal').classList.remove('hidden');
+}
+
+function updateKeyHint(list, providerId) {
+  const p = list.find(x => x.id === providerId);
+  document.getElementById('ag-key-hint').textContent = `Your key is encrypted and stored only for this agent. Expected format: ${p ? p.keyFormat : '...'}`;
+}
+
+function updateVoiceList(providerId, selectedVoice) {
+  const sel = document.getElementById('ag-voice');
+  const voices = PROVIDER_VOICES[providerId] || ['default'];
+  sel.innerHTML = voices.map(v => `<option value="${v}" ${v===selectedVoice?'selected':''}>${v}</option>`).join('');
 }
 
 function renderProviderGrid(list, selected) {
   const el = document.getElementById('ag-provider-grid');
   el.innerHTML = list.map(p => `
-    <div class="provider-opt ${p.id===selected?'active':''}" data-pid="${p.id}" onclick="selectProvider('${p.id}')">
-      ${p.name}<span class="ptype">${p.type.replace('_',' ')}</span>
-    </div>
+    <div class="provider-opt ${p.id===selected?'active':''}" data-pid="${p.id}" onclick="selectProvider('${p.id}')">${p.name}<span class="ptype">${p.type.replace('_',' ')}</span></div>
   `).join('');
 }
 
 function selectProvider(pid) {
   document.getElementById('ag-provider').value = pid;
   document.querySelectorAll('#ag-provider-grid .provider-opt').forEach(o => o.classList.toggle('active', o.dataset.pid === pid));
+  updateVoiceList(pid, null);
+  loadProviders().then(list => updateKeyHint(list, pid));
 }
 
-async function cloneAgent(id) {
-  await api('/api/agents/' + id + '/clone', 'POST');
+async function testAgentKey() {
+  if (!editingAgentId) { document.getElementById('ag-test-result').textContent = 'Save the agent first, then test the key.'; return; }
+  const keyVal = document.getElementById('ag-api-key').value;
+  const resultEl = document.getElementById('ag-test-result');
+
+  if (keyVal && keyVal !== '••••••••') {
+    await api('/api/agents/' + editingAgentId, 'PUT', {
+      name: document.getElementById('ag-name').value, prompt: document.getElementById('ag-prompt').value,
+      voice: document.getElementById('ag-voice').value, language: document.getElementById('ag-language').value,
+      provider: document.getElementById('ag-provider').value, status: 'active', api_key: keyVal
+    });
+  }
+  resultEl.textContent = 'Testing...';
+  const res = await api('/api/agents/' + editingAgentId + '/test-key', 'POST');
+  resultEl.textContent = res.message;
+  resultEl.style.color = res.valid ? 'var(--green)' : 'var(--red)';
+  const statusBadge = document.getElementById('ag-key-status');
+  statusBadge.textContent = res.valid ? 'connected' : 'invalid';
+  statusBadge.className = 'badge ' + (res.valid ? 'key-status-connected' : 'key-status-invalid');
   loadAgents();
 }
 
@@ -216,27 +280,25 @@ async function createAgent() {
   const voice = document.getElementById('ag-voice').value;
   const language = document.getElementById('ag-language').value;
   const provider = document.getElementById('ag-provider').value;
+  const apiKeyVal = document.getElementById('ag-api-key').value;
   if (!name || !prompt) { alert('Name and prompt are required'); return; }
 
-  if (editingAgentId) {
-    await api('/api/agents/' + editingAgentId, 'PUT', { name, prompt, voice, language, provider, status: 'active' });
-  } else {
-    await api('/api/agents', 'POST', { name, prompt, voice, language, provider });
-  }
+  const payload = { name, prompt, voice, language, provider };
+  if (apiKeyVal !== '••••••••') payload.api_key = apiKeyVal;
+
+  if (editingAgentId) { payload.status = 'active'; await api('/api/agents/' + editingAgentId, 'PUT', payload); }
+  else { await api('/api/agents', 'POST', payload); }
   editingAgentId = null;
   closeModal('agent-modal');
   loadAgents();
 }
 
-async function deleteAgent(id) {
-  if (!confirm('Delete this agent?')) return;
-  await api('/api/agents/' + id, 'DELETE');
-  loadAgents();
-}
+async function cloneAgent(id) { await api('/api/agents/' + id + '/clone', 'POST'); loadAgents(); }
+async function deleteAgent(id) { if (!confirm('Delete this agent?')) return; await api('/api/agents/' + id, 'DELETE'); loadAgents(); }
 
-// ── FLOWS ─────────────────────────────────────────────────────────────────
-let editingFlowId = null;
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
+// ── FLOW BUILDER ──────────────────────────────────────────────────────────
 async function loadFlows() {
   flowsCache = await api('/api/flows');
   const grid = document.getElementById('flows-grid');
@@ -244,131 +306,56 @@ async function loadFlows() {
     grid.innerHTML = '<div class="empty"><div class="ico">&#8997;</div><div class="ttl">No flows yet</div><div class="sub">Build a flow to define call logic</div></div>';
     return;
   }
-  grid.innerHTML = flowsCache.map(f => `
+  grid.innerHTML = flowsCache.map(f => {
+    const nodeCount = (typeof f.nodes === 'string' ? JSON.parse(f.nodes||'[]') : (f.nodes||[])).length;
+    return `
     <div class="entity-card">
       <div class="entity-card-top"><div class="entity-icon">&#8997;</div></div>
       <div class="entity-name">${f.name}</div>
-      <div class="entity-meta">${(JSON.parse(f.nodes||'[]')||f.nodes||[]).length || 0} nodes</div>
+      <div class="entity-meta">${nodeCount} nodes</div>
       <div class="entity-actions">
         <button class="btn-ghost btn-sm" onclick="openFlowModal('${f.id}')">Edit</button>
         <button class="btn-ghost btn-sm" onclick="cloneFlow('${f.id}')">Clone</button>
         <button class="btn-ghost btn-sm" onclick="deleteFlow('${f.id}')">Delete</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+}
+
+function seedDefaultFlow() {
+  return [{ id: 'start1', type: 'start', label: 'Start', color: '#15171A', x: 40, y: 40, config: {} }];
 }
 
 function openFlowModal(flowId) {
   editingFlowId = flowId || null;
   const flow = flowId ? flowsCache.find(f => f.id === flowId) : null;
-
-  flowNodes = flow ? (typeof flow.nodes === 'string' ? JSON.parse(flow.nodes) : flow.nodes) : [];
-  flowNodes = flowNodes.map(n => ({ ...n, expanded: false }));
+  const nodes = flow ? (typeof flow.nodes === 'string' ? JSON.parse(flow.nodes) : flow.nodes) : [];
+  const edges = flow ? (typeof flow.edges === 'string' ? JSON.parse(flow.edges) : flow.edges) : [];
   document.getElementById('fl-name').value = flow ? flow.name : '';
-
   document.querySelector('#flow-modal .modal-head h3').textContent = flow ? 'Edit Flow' : 'Flow Builder';
   document.querySelector('#flow-modal .modal-foot .btn:not(.btn-outline)').textContent = flow ? 'Save Changes' : 'Save Flow';
-
-  renderFlowCanvas();
   document.getElementById('flow-modal').classList.remove('hidden');
+  const container = document.getElementById('fb-container');
+  fbInstance = FlowBuilder(container, { nodes: nodes.length ? nodes : seedDefaultFlow(), edges, onChange: () => {} });
 }
 
-async function cloneFlow(id) {
-  await api('/api/flows/' + id + '/clone', 'POST');
-  loadFlows();
-}
-
-function addFlowNode(type) {
-  flowNodes.push({ id: Date.now(), type, name: type + ' Step', text: '', condition: '', target: '', expanded: true });
-  renderFlowCanvas();
-}
-
-function removeFlowNode(id) {
-  flowNodes = flowNodes.filter(n => n.id !== id);
-  renderFlowCanvas();
-}
-
-function toggleNodeExpand(id) {
-  const n = flowNodes.find(x => x.id === id);
-  if (n) n.expanded = !n.expanded;
-  renderFlowCanvas();
-}
-
-function updateNodeField(id, field, value) {
-  const n = flowNodes.find(x => x.id === id);
-  if (n) n[field] = value;
-}
-
-function renderFlowCanvas() {
-  const canvas = document.getElementById('flow-canvas');
-  if (!flowNodes.length) {
-    canvas.innerHTML = '<div style="color:var(--ink-soft);font-size:11.5px;text-align:center;padding:40px">Add nodes below to build your flow. Click a node to configure its details.</div>';
-    return;
-  }
-  canvas.innerHTML = flowNodes.map(n => {
-    let editHtml = '';
-    if (n.expanded) {
-      if (n.type === 'Greeting' || n.type === 'Question') {
-        editHtml = `<div class="flow-node-edit">
-          <label>Step Name</label><input type="text" value="${n.name}" onchange="updateNodeField(${n.id},'name',this.value)"/>
-          <label>${n.type === 'Greeting' ? 'Greeting Message' : 'Question Text'}</label>
-          <textarea rows="2" onchange="updateNodeField(${n.id},'text',this.value)" placeholder="What the agent should say...">${n.text}</textarea>
-        </div>`;
-      } else if (n.type === 'Condition') {
-        editHtml = `<div class="flow-node-edit">
-          <label>Step Name</label><input type="text" value="${n.name}" onchange="updateNodeField(${n.id},'name',this.value)"/>
-          <label>Condition Logic</label>
-          <input type="text" value="${n.condition}" onchange="updateNodeField(${n.id},'condition',this.value)" placeholder="e.g. user_says contains 'interested'"/>
-        </div>`;
-      } else if (n.type === 'Transfer') {
-        editHtml = `<div class="flow-node-edit">
-          <label>Step Name</label><input type="text" value="${n.name}" onchange="updateNodeField(${n.id},'name',this.value)"/>
-          <label>Transfer Target (extension)</label>
-          <input type="text" value="${n.target}" onchange="updateNodeField(${n.id},'target',this.value)" placeholder="e.g. 9000"/>
-        </div>`;
-      } else if (n.type === 'Hangup') {
-        editHtml = `<div class="flow-node-edit">
-          <label>Step Name</label><input type="text" value="${n.name}" onchange="updateNodeField(${n.id},'name',this.value)"/>
-          <label>Closing Message</label>
-          <textarea rows="2" onchange="updateNodeField(${n.id},'text',this.value)" placeholder="Goodbye message...">${n.text}</textarea>
-        </div>`;
-      }
-    }
-    return `
-      <div class="flow-node ${n.expanded?'expanded':''}" onclick="event.stopPropagation()">
-        <span class="fn-del" onclick="removeFlowNode(${n.id})">&times;</span>
-        <div onclick="toggleNodeExpand(${n.id})" style="cursor:pointer">
-          <div class="fn-type">${n.type}</div>
-          <div class="fn-name">${n.name}</div>
-        </div>
-        ${editHtml}
-      </div>
-    `;
-  }).join('');
-}
+async function cloneFlow(id) { await api('/api/flows/' + id + '/clone', 'POST'); loadFlows(); }
 
 async function createFlow() {
   const name = document.getElementById('fl-name').value.trim();
   if (!name) { alert('Flow name required'); return; }
-  if (editingFlowId) {
-    await api('/api/flows/' + editingFlowId, 'PUT', { name, nodes: flowNodes, edges: [] });
-  } else {
-    await api('/api/flows', 'POST', { name, nodes: flowNodes, edges: [] });
-  }
+  if (!fbInstance) { alert('Flow canvas not ready'); return; }
+  const { nodes, edges } = fbInstance.getData();
+  if (editingFlowId) await api('/api/flows/' + editingFlowId, 'PUT', { name, nodes, edges });
+  else await api('/api/flows', 'POST', { name, nodes, edges });
   editingFlowId = null;
   closeModal('flow-modal');
   loadFlows();
 }
 
-async function deleteFlow(id) {
-  if (!confirm('Delete this flow?')) return;
-  await api('/api/flows/' + id, 'DELETE');
-  loadFlows();
-}
+async function deleteFlow(id) { if (!confirm('Delete this flow?')) return; await api('/api/flows/' + id, 'DELETE'); loadFlows(); }
 
 // ── IVR ───────────────────────────────────────────────────────────────────
-let editingIvrId = null;
-
 async function loadIvrList() {
   ivrCache = await api('/api/ivr');
   const grid = document.getElementById('ivr-grid');
@@ -393,35 +380,18 @@ async function loadIvrList() {
 function openIvrModal(ivrId) {
   editingIvrId = ivrId || null;
   const ivr = ivrId ? ivrCache.find(i => i.id === ivrId) : null;
-
-  ivrOptions = ivr ? (ivr.options||[]).map(o => ({ ...o, id: o.id || Date.now() + Math.random() })) : [];
+  ivrOptions = ivr ? (ivr.options||[]).map(o => ({ ...o, id: o.id || Date.now()+Math.random() })) : [];
   document.getElementById('ivr-name').value = ivr ? ivr.name : '';
-
   document.querySelector('#ivr-modal .modal-head h3').textContent = ivr ? 'Edit IVR Menu' : 'Create IVR Menu';
   document.querySelector('#ivr-modal .modal-foot .btn:not(.btn-outline)').textContent = ivr ? 'Save Changes' : 'Save Menu';
-
   renderIvrOptions();
   document.getElementById('ivr-modal').classList.remove('hidden');
 }
 
-async function cloneIvr(id) {
-  await api('/api/ivr/' + id + '/clone', 'POST');
-  loadIvrList();
-}
-
-function addIvrOption() {
-  ivrOptions.push({ id: Date.now(), key: ivrOptions.length + 1, action: 'Transfer to Agent' });
-  renderIvrOptions();
-}
-
-function removeIvrOption(id) {
-  ivrOptions = ivrOptions.filter(o => o.id !== id);
-  renderIvrOptions();
-}
-
+function addIvrOption() { ivrOptions.push({ id: Date.now(), key: ivrOptions.length+1, action: 'Transfer to Agent' }); renderIvrOptions(); }
+function removeIvrOption(id) { ivrOptions = ivrOptions.filter(o => o.id !== id); renderIvrOptions(); }
 function renderIvrOptions() {
-  const el = document.getElementById('ivr-options-list');
-  el.innerHTML = ivrOptions.map(o => `
+  document.getElementById('ivr-options-list').innerHTML = ivrOptions.map(o => `
     <div class="field-row" style="align-items:center;margin-bottom:8px">
       <input type="text" value="${o.key}" style="max-width:60px" onchange="updateIvrKey(${o.id}, this.value)" placeholder="Key"/>
       <div class="inline-flex">
@@ -431,39 +401,26 @@ function renderIvrOptions() {
     </div>
   `).join('');
 }
-
-function updateIvrKey(id, val) { const o = ivrOptions.find(x => x.id === id); if (o) o.key = val; }
-function updateIvrAction(id, val) { const o = ivrOptions.find(x => x.id === id); if (o) o.action = val; }
+function updateIvrKey(id,val) { const o = ivrOptions.find(x=>x.id===id); if(o) o.key=val; }
+function updateIvrAction(id,val) { const o = ivrOptions.find(x=>x.id===id); if(o) o.action=val; }
 
 async function createIvr() {
   const name = document.getElementById('ivr-name').value.trim();
   if (!name) { alert('Menu name required'); return; }
-  if (editingIvrId) {
-    await api('/api/ivr/' + editingIvrId, 'PUT', { name, options: ivrOptions });
-  } else {
-    await api('/api/ivr', 'POST', { name, options: ivrOptions });
-  }
+  if (editingIvrId) await api('/api/ivr/' + editingIvrId, 'PUT', { name, options: ivrOptions });
+  else await api('/api/ivr', 'POST', { name, options: ivrOptions });
   editingIvrId = null;
   closeModal('ivr-modal');
   loadIvrList();
 }
-
-async function deleteIvr(id) {
-  if (!confirm('Delete this IVR menu?')) return;
-  await api('/api/ivr/' + id, 'DELETE');
-  loadIvrList();
-}
+async function cloneIvr(id) { await api('/api/ivr/' + id + '/clone', 'POST'); loadIvrList(); }
+async function deleteIvr(id) { if (!confirm('Delete this IVR menu?')) return; await api('/api/ivr/' + id, 'DELETE'); loadIvrList(); }
 
 // ── DISPOSITIONS ──────────────────────────────────────────────────────────
-let editingDispoId = null;
-
 async function loadDispositions() {
   dispoCache = await api('/api/dispositions');
   const tbody = document.getElementById('dispo-table');
-  if (!dispoCache.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--ink-soft)">No dispositions configured</td></tr>';
-    return;
-  }
+  if (!dispoCache.length) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--ink-soft)">No dispositions configured</td></tr>'; return; }
   tbody.innerHTML = dispoCache.map(d => `
     <tr>
       <td><strong>${d.name}</strong></td>
@@ -481,238 +438,29 @@ async function loadDispositions() {
 function openDispoModal(dispoId) {
   editingDispoId = dispoId || null;
   const dispo = dispoId ? dispoCache.find(d => d.id === dispoId) : null;
-
   document.getElementById('dp-name').value = dispo ? dispo.name : '';
   document.getElementById('dp-color').value = dispo ? dispo.color : '#FF6B00';
   document.getElementById('dp-subs').value = dispo ? (dispo.sub_dispositions||[]).join(', ') : '';
-
   document.querySelector('#dispo-modal .modal-head h3').textContent = dispo ? 'Edit Disposition' : 'New Disposition';
   document.querySelector('#dispo-modal .modal-foot .btn:not(.btn-outline)').textContent = dispo ? 'Save Changes' : 'Create';
-
   document.getElementById('dispo-modal').classList.remove('hidden');
-}
-
-async function cloneDispo(id) {
-  await api('/api/dispositions/' + id + '/clone', 'POST');
-  loadDispositions();
 }
 
 async function createDispo() {
   const name = document.getElementById('dp-name').value.trim();
   const color = document.getElementById('dp-color').value;
-  const subs = document.getElementById('dp-subs').value.split(',').map(s => s.trim()).filter(Boolean);
+  const subs = document.getElementById('dp-subs').value.split(',').map(s=>s.trim()).filter(Boolean);
   if (!name) { alert('Name required'); return; }
-  if (editingDispoId) {
-    await api('/api/dispositions/' + editingDispoId, 'PUT', { name, color, sub_dispositions: subs });
-  } else {
-    await api('/api/dispositions', 'POST', { name, color, sub_dispositions: subs });
-  }
+  if (editingDispoId) await api('/api/dispositions/' + editingDispoId, 'PUT', { name, color, sub_dispositions: subs });
+  else await api('/api/dispositions', 'POST', { name, color, sub_dispositions: subs });
   editingDispoId = null;
   closeModal('dispo-modal');
   loadDispositions();
 }
+async function cloneDispo(id) { await api('/api/dispositions/' + id + '/clone', 'POST'); loadDispositions(); }
+async function deleteDispo(id) { if (!confirm('Delete this disposition?')) return; await api('/api/dispositions/' + id, 'DELETE'); loadDispositions(); }
 
-async function deleteDispo(id) {
-  if (!confirm('Delete this disposition?')) return;
-  await api('/api/dispositions/' + id, 'DELETE');
-  loadDispositions();
-}
-
-// ── CAMPAIGNS ─────────────────────────────────────────────────────────────
-let editingCampaignId = null;
-
-async function loadCampaigns() {
-  campaignsCache = await api('/api/campaigns');
-  const tbody = document.getElementById('campaigns-table');
-  if (!campaignsCache.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--ink-soft)">No campaigns yet</td></tr>';
-    return;
-  }
-  tbody.innerHTML = campaignsCache.map(c => `
-    <tr>
-      <td><strong>${c.name}</strong></td>
-      <td><span class="badge badge-blue">${c.mode}</span></td>
-      <td>${c.cps}</td>
-      <td>${(c.queue||[]).length}</td>
-      <td><span class="badge ${c.status==='active'?'badge-green':c.status==='paused'?'badge-orange':'badge-gray'}">${c.status}</span></td>
-      <td>
-        ${c.status==='draft' ? `<button class="btn-sm btn" onclick="updateCampaignStatus('${c.id}','active')">Launch</button>` : ''}
-        ${c.status==='active' ? `<button class="btn-sm btn-outline" onclick="updateCampaignStatus('${c.id}','paused')">Pause</button>` : ''}
-        ${c.status==='paused' ? `<button class="btn-sm btn" onclick="updateCampaignStatus('${c.id}','active')">Resume</button>` : ''}
-        <button class="btn-ghost btn-sm" onclick="openCampaignModal('${c.id}')">Edit</button>
-        <button class="btn-ghost btn-sm" onclick="cloneCampaign('${c.id}')">Clone</button>
-        <button class="btn-ghost btn-sm" onclick="deleteCampaign('${c.id}')">Delete</button>
-      </td>
-    </tr>
-  `).join('');
-}
-
-function selectMode(mode) {
-  selectedMode = mode;
-  document.querySelectorAll('#cm-mode-group .pill').forEach(p => p.classList.toggle('active', p.dataset.mode === mode));
-}
-
-function switchTab(tabId) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  event.currentTarget.classList.add('active');
-  document.getElementById(tabId).classList.add('active');
-}
-
-function addDndToCampaign() {
-  const val = document.getElementById('cm-dnd-input').value.trim();
-  if (!val) return;
-  cmDndList.push(val);
-  document.getElementById('cm-dnd-input').value = '';
-  renderCmDndChips();
-}
-
-function renderCmDndChips() {
-  const el = document.getElementById('cm-dnd-chips');
-  el.innerHTML = cmDndList.map((n, i) => `
-    <div class="chip"><span class="dot" style="background:var(--red)"></span>${n} <span class="x" onclick="removeCmDnd(${i})">&times;</span></div>
-  `).join('');
-}
-
-function removeCmDnd(i) { cmDndList.splice(i, 1); renderCmDndChips(); }
-
-function checkNewAgentOption(sel) {
-  if (sel.value === '__new__') {
-    closeModal('campaign-modal');
-    openAgentModal();
-    // After agent created, reopen campaign modal logic could go here in future
-  }
-}
-
-function openCampaignModal(campaignId) {
-  editingCampaignId = campaignId || null;
-  const camp = campaignId ? campaignsCache.find(c => c.id === campaignId) : null;
-
-  document.getElementById('cm-name').value = camp ? camp.name : '';
-  document.getElementById('cm-cps').value = camp ? camp.cps : 1;
-  document.getElementById('cm-status').value = camp ? camp.status : 'draft';
-  selectedMode = camp ? camp.mode : 'preview';
-  cmDndList = camp ? [...(camp.dnd_list||[])] : [];
-  document.querySelectorAll('#cm-mode-group .pill').forEach(p => p.classList.toggle('active', p.dataset.mode === selectedMode));
-  renderCmDndChips();
-
-  const agentSel = document.getElementById('cm-agent');
-  agentSel.innerHTML = (agentsCache.length ? agentsCache.map(a => `<option value="${a.id}">${a.name}</option>`).join('') : '') + '<option value="__new__">+ Create New Agent...</option>';
-  if (camp && camp.agent_id) agentSel.value = camp.agent_id;
-
-  const flowSel = document.getElementById('cm-flow');
-  flowSel.innerHTML = '<option value="">- None -</option>' + flowsCache.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
-  if (camp && camp.flow_id) flowSel.value = camp.flow_id;
-
-  const ivrSel = document.getElementById('cm-ivr');
-  ivrSel.innerHTML = '<option value="">- None -</option>' + ivrCache.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
-  if (camp && camp.ivr_id) ivrSel.value = camp.ivr_id;
-
-  const trunkSel = document.getElementById('cm-trunk');
-  trunkSel.innerHTML = '<option value="">- None -</option>' + trunksCache.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-  if (camp && camp.trunk_id) trunkSel.value = camp.trunk_id;
-
-  if (camp) {
-    document.getElementById('cm-queue-pending').textContent = (camp.queue||[]).length;
-    document.getElementById('cm-queue-recycle').textContent = (camp.recycle_list||[]).length;
-    document.getElementById('cm-queue-dnd').textContent = (camp.dnd_list||[]).length;
-  }
-
-  document.querySelector('#campaign-modal .modal-head h3').textContent = camp ? 'Edit Campaign' : 'New Campaign';
-  document.querySelector('#campaign-modal .modal-foot .btn:not(.btn-outline)').textContent = camp ? 'Save Changes' : 'Create Campaign';
-
-  document.getElementById('campaign-modal').classList.remove('hidden');
-}
-
-async function cloneCampaign(id) {
-  await api('/api/campaigns/' + id + '/clone', 'POST');
-  loadCampaigns();
-}
-
-async function createCampaign() {
-  const name = document.getElementById('cm-name').value.trim();
-  const cps = parseInt(document.getElementById('cm-cps').value) || 1;
-  const status = document.getElementById('cm-status').value;
-  const agent_id = document.getElementById('cm-agent').value;
-  const flow_id = document.getElementById('cm-flow').value;
-  const ivr_id = document.getElementById('cm-ivr').value;
-  const trunk_id = document.getElementById('cm-trunk').value;
-  const schedule_start = document.getElementById('cm-sched-start').value;
-  const schedule_end = document.getElementById('cm-sched-end').value;
-
-  if (!name) { alert('Campaign name required'); return; }
-  if (agent_id === '__new__') { alert('Please select an existing agent or create one first'); return; }
-
-  let campaignId = editingCampaignId;
-
-  if (editingCampaignId) {
-    await api('/api/campaigns/' + editingCampaignId, 'PUT', {
-      name, agent_id, flow_id, ivr_id, trunk_id, mode: selectedMode, cps, status, schedule_start, schedule_end
-    });
-  } else {
-    const result = await api('/api/campaigns', 'POST', {
-      name, agent_id, flow_id, ivr_id, trunk_id, mode: selectedMode, cps, status, schedule_start, schedule_end
-    });
-    campaignId = result.id;
-  }
-
-  const fileInput = document.getElementById('cm-leads-file');
-  if (fileInput.files.length && campaignId) {
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
-    await api('/api/campaigns/' + campaignId + '/leads', 'POST', formData, true);
-  }
-
-  for (const phone of cmDndList) {
-    if (campaignId) await api('/api/campaigns/' + campaignId + '/dnd', 'POST', { phone });
-  }
-
-  editingCampaignId = null;
-  closeModal('campaign-modal');
-  loadCampaigns();
-  loadDashboard();
-}
-
-async function updateCampaignStatus(id, status) {
-  await api('/api/campaigns/' + id + '/status', 'PUT', { status });
-  loadCampaigns();
-  loadDashboard();
-}
-
-async function deleteCampaign(id) {
-  if (!confirm('Delete this campaign?')) return;
-  await api('/api/campaigns/' + id, 'DELETE');
-  loadCampaigns();
-}
-
-// ── CALLS ─────────────────────────────────────────────────────────────────
-async function loadCalls() {
-  const calls = await api('/api/calls');
-  const tbody = document.getElementById('calls-table');
-  if (!calls.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--ink-soft)">No calls logged yet</td></tr>';
-    return;
-  }
-  tbody.innerHTML = calls.map(c => `
-    <tr>
-      <td>${c.phone || '—'}</td>
-      <td><span class="badge ${c.outcome==='INTERESTED'?'badge-green':c.outcome==='TRANSFER'?'badge-blue':'badge-gray'}">${c.outcome||'—'}</span></td>
-      <td>${c.duration}s</td>
-      <td>${new Date(c.created_at).toLocaleString()}</td>
-    </tr>
-  `).join('');
-}
-
-// ── MODAL HELPERS ─────────────────────────────────────────────────────────
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-
-// Refresh dashboard periodically
-setInterval(() => { if (!document.getElementById('app-screen').classList.contains('hidden')) loadDashboard(); }, 20000);
-
-// ============================================================
-// TELEPHONY MODULE — Trunks, Numbers, Routes
-// ============================================================
-
+// ── TELEPHONY ─────────────────────────────────────────────────────────────
 function showTelSubPage(sub) {
   document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.sub-page').forEach(p => p.classList.remove('active'));
@@ -721,28 +469,17 @@ function showTelSubPage(sub) {
   if (sub === 'numbers') loadNumbers();
   if (sub === 'routes') loadRoutes();
 }
-
-async function loadTelephony() {
-  await loadTrunks();
-}
-
-let editingTrunkId = null;
+async function loadTelephony() { await loadTrunks(); }
 
 async function loadTrunks() {
   trunksCache = await api('/api/telephony/trunks');
   const el = document.getElementById('trunks-list');
-  if (!trunksCache.length) {
-    el.innerHTML = '<div class="empty"><div class="ico">&#9742;</div><div class="ttl">No trunks configured</div><div class="sub">Add a FreeSWITCH or Asterisk SIP trunk to start routing calls</div></div>';
-    return;
-  }
+  if (!trunksCache.length) { el.innerHTML = '<div class="empty"><div class="ico">&#9742;</div><div class="ttl">No trunks configured</div></div>'; return; }
   el.innerHTML = trunksCache.map(t => `
     <div class="trunk-card">
       <div class="trunk-info">
-        <div class="trunk-server-badge">${t.server_type === 'asterisk' ? 'AST' : 'FS'}</div>
-        <div>
-          <div class="trunk-name">${t.name}</div>
-          <div class="trunk-meta">${t.sip_host}:${t.sip_port} &middot; ${t.transport.toUpperCase()} &middot; Max ${t.max_channels} channels</div>
-        </div>
+        <div class="trunk-server-badge">${t.server_type==='asterisk'?'AST':'FS'}</div>
+        <div><div class="trunk-name">${t.name}</div><div class="trunk-meta">${t.sip_host}:${t.sip_port} &middot; ${t.transport.toUpperCase()} &middot; Max ${t.max_channels} channels</div></div>
       </div>
       <div class="trunk-actions">
         <span class="badge ${t.status==='active'?'badge-green':'badge-gray'}">${t.status}</span>
@@ -756,7 +493,6 @@ async function loadTrunks() {
 function openTrunkModal(trunkId) {
   editingTrunkId = trunkId || null;
   const trunk = trunkId ? trunksCache.find(t => t.id === trunkId) : null;
-
   document.getElementById('tr-name').value = trunk ? trunk.name : '';
   document.getElementById('tr-server-type').value = trunk ? trunk.server_type : 'freeswitch';
   document.getElementById('tr-host').value = trunk ? trunk.sip_host : '';
@@ -766,10 +502,8 @@ function openTrunkModal(trunkId) {
   document.getElementById('tr-transport').value = trunk ? trunk.transport : 'udp';
   document.getElementById('tr-max-channels').value = trunk ? trunk.max_channels : 10;
   document.getElementById('tr-register').checked = trunk ? !!trunk.register : true;
-
   document.querySelector('#trunk-modal .modal-head h3').textContent = trunk ? 'Edit SIP Trunk' : 'Add SIP Trunk';
   document.querySelector('#trunk-modal .modal-foot .btn:not(.btn-outline)').textContent = trunk ? 'Save Changes' : 'Add Trunk';
-
   document.getElementById('trunk-modal').classList.remove('hidden');
 }
 
@@ -783,156 +517,301 @@ async function createTrunk() {
   const transport = document.getElementById('tr-transport').value;
   const max_channels = parseInt(document.getElementById('tr-max-channels').value) || 10;
   const register = document.getElementById('tr-register').checked;
-  const status = 'active';
-
   if (!name || !sip_host) { alert('Name and SIP host required'); return; }
-
-  if (editingTrunkId) {
-    await api('/api/telephony/trunks/' + editingTrunkId, 'PUT', { name, server_type, sip_host, sip_port, sip_user, sip_pass, transport, register, max_channels, status });
-  } else {
-    await api('/api/telephony/trunks', 'POST', { name, server_type, sip_host, sip_port, sip_user, sip_pass, transport, register, max_channels });
-  }
+  if (editingTrunkId) await api('/api/telephony/trunks/' + editingTrunkId, 'PUT', { name, server_type, sip_host, sip_port, sip_user, sip_pass, transport, register, max_channels, status: 'active' });
+  else await api('/api/telephony/trunks', 'POST', { name, server_type, sip_host, sip_port, sip_user, sip_pass, transport, register, max_channels });
   editingTrunkId = null;
   closeModal('trunk-modal');
   loadTrunks();
 }
+async function deleteTrunk(id) { if (!confirm('Delete this trunk?')) return; await api('/api/telephony/trunks/' + id, 'DELETE'); loadTrunks(); }
 
-async function deleteTrunk(id) {
-  if (!confirm('Delete this trunk? Associated routes will also be removed.')) return;
-  await api('/api/telephony/trunks/' + id, 'DELETE');
-  loadTrunks();
-}
-
-// ── DID Numbers ──────────────────────────────────────────────────────────
 async function loadNumbers() {
   numbersCache = await api('/api/telephony/numbers');
-  await loadTrunks(); // ensure trunk dropdown populated
-
-  const trunkSel = document.getElementById('num-bulk-trunk');
-  trunkSel.innerHTML = '<option value="">- Unassigned -</option>' + trunksCache.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
-
+  await loadTrunks();
+  document.getElementById('num-bulk-trunk').innerHTML = '<option value="">- Unassigned -</option>' + trunksCache.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
   const tbody = document.getElementById('numbers-table');
-  if (!numbersCache.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--ink-soft)">No numbers added yet</td></tr>';
-    return;
-  }
+  if (!numbersCache.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--ink-soft)">No numbers added yet</td></tr>'; return; }
   tbody.innerHTML = numbersCache.map(n => `
-    <tr>
-      <td><strong>${n.number}</strong></td>
-      <td>${n.label || '—'}</td>
-      <td><span class="badge badge-blue">${n.type}</span></td>
-      <td><span class="badge ${n.status==='active'?'badge-green':'badge-gray'}">${n.status}</span></td>
-      <td><button class="btn-ghost btn-sm" onclick="deleteNumber('${n.id}')">Delete</button></td>
-    </tr>
+    <tr><td><strong>${n.number}</strong></td><td>${n.label||'—'}</td><td><span class="badge badge-blue">${n.type}</span></td>
+    <td><span class="badge ${n.status==='active'?'badge-green':'badge-gray'}">${n.status}</span></td>
+    <td><button class="btn-ghost btn-sm" onclick="deleteNumber('${n.id}')">Delete</button></td></tr>
   `).join('');
 }
-
 async function addSingleNumber() {
   const number = document.getElementById('num-single-input').value.trim();
   const label = document.getElementById('num-single-label').value.trim();
   if (!number) { alert('Enter a number'); return; }
   await api('/api/telephony/numbers', 'POST', { number, label, type: 'both' });
-  document.getElementById('num-single-input').value = '';
-  document.getElementById('num-single-label').value = '';
+  document.getElementById('num-single-input').value = ''; document.getElementById('num-single-label').value = '';
   loadNumbers();
 }
-
 async function bulkUploadNumbers() {
   const fileInput = document.getElementById('num-bulk-file');
   if (!fileInput.files.length) { alert('Choose a CSV file'); return; }
-  const trunk_id = document.getElementById('num-bulk-trunk').value;
-  const type = document.getElementById('num-bulk-type').value;
   const formData = new FormData();
   formData.append('file', fileInput.files[0]);
-  formData.append('trunk_id', trunk_id);
-  formData.append('type', type);
+  formData.append('trunk_id', document.getElementById('num-bulk-trunk').value);
+  formData.append('type', document.getElementById('num-bulk-type').value);
   const res = await api('/api/telephony/numbers/bulk', 'POST', formData, true);
   alert(`Added ${res.added || 0} numbers`);
-  fileInput.value = '';
-  loadNumbers();
+  fileInput.value = ''; loadNumbers();
 }
+async function deleteNumber(id) { if (!confirm('Delete this number?')) return; await api('/api/telephony/numbers/' + id, 'DELETE'); loadNumbers(); }
 
-async function deleteNumber(id) {
-  if (!confirm('Delete this number?')) return;
-  await api('/api/telephony/numbers/' + id, 'DELETE');
-  loadNumbers();
-}
-
-// ── Routes ───────────────────────────────────────────────────────────────
 async function loadRoutes() {
   const routes = await api('/api/telephony/routes');
   await loadTrunks();
   const tbody = document.getElementById('routes-table');
-  if (!routes.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--ink-soft)">No routes configured</td></tr>';
-    return;
-  }
+  if (!routes.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--ink-soft)">No routes configured</td></tr>'; return; }
   tbody.innerHTML = routes.map(r => {
     const trunk = trunksCache.find(t => t.id === r.trunk_id);
     const did = numbersCache.find(n => n.id === r.did_id);
-    return `
-      <tr>
-        <td><span class="badge ${r.direction==='inbound'?'badge-blue':'badge-purple'}">${r.direction}</span></td>
-        <td>${trunk ? trunk.name : '—'}</td>
-        <td>${did ? did.number : '—'}</td>
-        <td>${r.destination_type} ${r.destination_id ? '(' + r.destination_id.slice(0,8) + ')' : ''}</td>
-        <td>${r.priority}</td>
-        <td><button class="btn-ghost btn-sm" onclick="deleteRoute('${r.id}')">Delete</button></td>
-      </tr>
-    `;
+    return `<tr><td><span class="badge ${r.direction==='inbound'?'badge-blue':'badge-purple'}">${r.direction}</span></td>
+      <td>${trunk?trunk.name:'—'}</td><td>${did?did.number:'—'}</td>
+      <td>${r.destination_type} ${r.destination_id?'('+r.destination_id.slice(0,8)+')':''}</td>
+      <td>${r.priority}</td><td><button class="btn-ghost btn-sm" onclick="deleteRoute('${r.id}')">Delete</button></td></tr>`;
   }).join('');
 }
-
 function toggleRouteFields() {
   const dir = document.getElementById('rt-direction').value;
-  document.getElementById('rt-did-field').style.display = dir === 'inbound' ? 'block' : 'none';
-  document.getElementById('rt-dest-field').style.display = dir === 'inbound' ? 'block' : 'none';
+  document.getElementById('rt-did-field').style.display = dir==='inbound'?'block':'none';
+  document.getElementById('rt-dest-field').style.display = dir==='inbound'?'block':'none';
 }
-
 async function openRouteModal() {
   await loadTrunks();
   numbersCache = await api('/api/telephony/numbers');
-
-  const trunkSel = document.getElementById('rt-trunk');
-  trunkSel.innerHTML = trunksCache.map(t => `<option value="${t.id}">${t.name}</option>`).join('') || '<option value="">No trunks — add one first</option>';
-
-  const didSel = document.getElementById('rt-did');
-  didSel.innerHTML = '<option value="">- Any -</option>' + numbersCache.map(n => `<option value="${n.id}">${n.number}</option>`).join('');
-
-  const destSel = document.getElementById('rt-dest-id');
-  destSel.innerHTML = ivrCache.map(i => `<option value="${i.id}">${i.name}</option>`).join('') + agentsCache.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
-
+  document.getElementById('rt-trunk').innerHTML = trunksCache.map(t => `<option value="${t.id}">${t.name}</option>`).join('') || '<option value="">No trunks — add one first</option>';
+  document.getElementById('rt-did').innerHTML = '<option value="">- Any -</option>' + numbersCache.map(n => `<option value="${n.id}">${n.number}</option>`).join('');
+  document.getElementById('rt-dest-id').innerHTML = ivrCache.map(i => `<option value="${i.id}">${i.name}</option>`).join('') + agentsCache.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   toggleRouteFields();
   document.getElementById('route-modal').classList.remove('hidden');
 }
-
 async function createRoute() {
   const trunk_id = document.getElementById('rt-trunk').value;
-  const did_id = document.getElementById('rt-did').value;
-  const direction = document.getElementById('rt-direction').value;
-  const destination_type = document.getElementById('rt-dest-type').value;
-  const destination_id = document.getElementById('rt-dest-id').value;
-  const priority = parseInt(document.getElementById('rt-priority').value) || 1;
-
   if (!trunk_id) { alert('Select a trunk'); return; }
-
-  await api('/api/telephony/routes', 'POST', { trunk_id, did_id, direction, destination_type, destination_id, priority });
+  await api('/api/telephony/routes', 'POST', {
+    trunk_id, did_id: document.getElementById('rt-did').value,
+    direction: document.getElementById('rt-direction').value,
+    destination_type: document.getElementById('rt-dest-type').value,
+    destination_id: document.getElementById('rt-dest-id').value,
+    priority: parseInt(document.getElementById('rt-priority').value) || 1
+  });
   closeModal('route-modal');
   loadRoutes();
 }
+async function deleteRoute(id) { if (!confirm('Delete this route?')) return; await api('/api/telephony/routes/' + id, 'DELETE'); loadRoutes(); }
 
-async function deleteRoute(id) {
-  if (!confirm('Delete this route?')) return;
-  await api('/api/telephony/routes/' + id, 'DELETE');
-  loadRoutes();
+// ── CAMPAIGNS ─────────────────────────────────────────────────────────────
+async function loadCampaigns() {
+  campaignsCache = await api('/api/campaigns');
+  const tbody = document.getElementById('campaigns-table');
+  if (!campaignsCache.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--ink-soft)">No campaigns yet</td></tr>'; return; }
+  tbody.innerHTML = campaignsCache.map(c => `
+    <tr><td><strong>${c.name}</strong></td><td><span class="badge badge-blue">${c.mode}</span></td><td>${c.cps}</td><td>${(c.queue||[]).length}</td>
+    <td><span class="badge ${c.status==='active'?'badge-green':c.status==='paused'?'badge-orange':'badge-gray'}">${c.status}</span></td>
+    <td>
+      ${c.status==='draft'?`<button class="btn-sm btn" onclick="updateCampaignStatus('${c.id}','active')">Launch</button>`:''}
+      ${c.status==='active'?`<button class="btn-sm btn-outline" onclick="updateCampaignStatus('${c.id}','paused')">Pause</button>`:''}
+      ${c.status==='paused'?`<button class="btn-sm btn" onclick="updateCampaignStatus('${c.id}','active')">Resume</button>`:''}
+      <button class="btn-ghost btn-sm" onclick="openCampaignModal('${c.id}')">Edit</button>
+      <button class="btn-ghost btn-sm" onclick="cloneCampaign('${c.id}')">Clone</button>
+      <button class="btn-ghost btn-sm" onclick="deleteCampaign('${c.id}')">Delete</button>
+    </td></tr>
+  `).join('');
 }
 
-// ============================================================
-// REPORTS MODULE
-// ============================================================
+function selectMode(mode) { selectedMode = mode; document.querySelectorAll('#cm-mode-group .pill').forEach(p => p.classList.toggle('active', p.dataset.mode === mode)); }
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+function addDndToCampaign() {
+  const val = document.getElementById('cm-dnd-input').value.trim();
+  if (!val) return;
+  cmDndList.push(val);
+  document.getElementById('cm-dnd-input').value = '';
+  renderCmDndChips();
+}
+function renderCmDndChips() {
+  document.getElementById('cm-dnd-chips').innerHTML = cmDndList.map((n,i) => `<div class="chip"><span class="dot" style="background:var(--red)"></span>${n} <span class="x" onclick="removeCmDnd(${i})">&times;</span></div>`).join('');
+}
+function removeCmDnd(i) { cmDndList.splice(i,1); renderCmDndChips(); }
 
-let currentReport = 'cdr';
+function checkNewAgentOption(sel) { if (sel.value === '__new__') { closeModal('campaign-modal'); openAgentModal(); } }
 
+function openCampaignModal(campaignId) {
+  editingCampaignId = campaignId || null;
+  const camp = campaignId ? campaignsCache.find(c => c.id === campaignId) : null;
+  document.getElementById('cm-name').value = camp ? camp.name : '';
+  document.getElementById('cm-cps').value = camp ? camp.cps : 1;
+  document.getElementById('cm-status').value = camp ? camp.status : 'draft';
+  selectedMode = camp ? camp.mode : 'preview';
+  cmDndList = camp ? [...(camp.dnd_list||[])] : [];
+  document.querySelectorAll('#cm-mode-group .pill').forEach(p => p.classList.toggle('active', p.dataset.mode === selectedMode));
+  renderCmDndChips();
+
+  const agentSel = document.getElementById('cm-agent');
+  agentSel.innerHTML = (agentsCache.length?agentsCache.map(a=>`<option value="${a.id}">${a.name}</option>`).join(''):'') + '<option value="__new__">+ Create New Agent...</option>';
+  if (camp && camp.agent_id) agentSel.value = camp.agent_id;
+
+  const flowSel = document.getElementById('cm-flow');
+  flowSel.innerHTML = '<option value="">- None -</option>' + flowsCache.map(f=>`<option value="${f.id}">${f.name}</option>`).join('');
+  if (camp && camp.flow_id) flowSel.value = camp.flow_id;
+
+  const ivrSel = document.getElementById('cm-ivr');
+  ivrSel.innerHTML = '<option value="">- None -</option>' + ivrCache.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
+  if (camp && camp.ivr_id) ivrSel.value = camp.ivr_id;
+
+  const trunkSel = document.getElementById('cm-trunk');
+  trunkSel.innerHTML = '<option value="">- None -</option>' + trunksCache.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  if (camp && camp.trunk_id) trunkSel.value = camp.trunk_id;
+
+  if (camp) {
+    document.getElementById('cm-queue-pending').textContent = (camp.queue||[]).length;
+    document.getElementById('cm-queue-recycle').textContent = (camp.recycle_list||[]).length;
+    document.getElementById('cm-queue-dnd').textContent = (camp.dnd_list||[]).length;
+  }
+  document.querySelector('#campaign-modal .modal-head h3').textContent = camp ? 'Edit Campaign' : 'New Campaign';
+  document.querySelector('#campaign-modal .modal-foot .btn:not(.btn-outline)').textContent = camp ? 'Save Changes' : 'Create Campaign';
+  document.getElementById('campaign-modal').classList.remove('hidden');
+}
+
+async function createCampaign() {
+  const name = document.getElementById('cm-name').value.trim();
+  const cps = parseInt(document.getElementById('cm-cps').value) || 1;
+  const status = document.getElementById('cm-status').value;
+  const agent_id = document.getElementById('cm-agent').value;
+  const flow_id = document.getElementById('cm-flow').value;
+  const ivr_id = document.getElementById('cm-ivr').value;
+  const trunk_id = document.getElementById('cm-trunk').value;
+  const schedule_start = document.getElementById('cm-sched-start').value;
+  const schedule_end = document.getElementById('cm-sched-end').value;
+  if (!name) { alert('Campaign name required'); return; }
+  if (agent_id === '__new__') { alert('Please select an existing agent or create one first'); return; }
+
+  let campaignId = editingCampaignId;
+  if (editingCampaignId) await api('/api/campaigns/' + editingCampaignId, 'PUT', { name, agent_id, flow_id, ivr_id, trunk_id, mode: selectedMode, cps, status, schedule_start, schedule_end });
+  else { const result = await api('/api/campaigns', 'POST', { name, agent_id, flow_id, ivr_id, trunk_id, mode: selectedMode, cps, status, schedule_start, schedule_end }); campaignId = result.id; }
+
+  const fileInput = document.getElementById('cm-leads-file');
+  if (fileInput.files.length && campaignId) { const fd = new FormData(); fd.append('file', fileInput.files[0]); await api('/api/campaigns/' + campaignId + '/leads', 'POST', fd, true); }
+  for (const phone of cmDndList) { if (campaignId) await api('/api/campaigns/' + campaignId + '/dnd', 'POST', { phone }); }
+
+  editingCampaignId = null;
+  closeModal('campaign-modal');
+  loadCampaigns();
+  loadDashboard();
+}
+async function updateCampaignStatus(id, status) { await api('/api/campaigns/' + id + '/status', 'PUT', { status }); loadCampaigns(); loadDashboard(); }
+async function cloneCampaign(id) { await api('/api/campaigns/' + id + '/clone', 'POST'); loadCampaigns(); }
+async function deleteCampaign(id) { if (!confirm('Delete this campaign?')) return; await api('/api/campaigns/' + id, 'DELETE'); loadCampaigns(); }
+
+// ── CALLS ─────────────────────────────────────────────────────────────────
+async function loadCalls() {
+  const calls = await api('/api/calls');
+  const tbody = document.getElementById('calls-table');
+  if (!calls.length) { tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--ink-soft)">No calls logged yet</td></tr>'; return; }
+  tbody.innerHTML = calls.map(c => `
+    <tr><td>${c.phone||'—'}</td><td><span class="badge ${c.outcome==='INTERESTED'?'badge-green':c.outcome==='TRANSFER'?'badge-blue':'badge-gray'}">${c.outcome||'—'}</span></td>
+    <td>${c.duration}s</td><td>${new Date(c.created_at).toLocaleString()}</td></tr>
+  `).join('');
+}
+
+// ── TEAM (with permission grid) ──────────────────────────────────────────
+const ROLE_DEFAULT_GRID = {
+  manager: { dashboard:'view', agents:'edit', flows:'edit', ivr:'edit', dispositions:'edit', telephony:'view', campaigns:'full', calls:'view', reports:'view', recordings:'view', dnd:'edit', team:'none' },
+  agent:   { dashboard:'view', agents:'none', flows:'none', ivr:'none', dispositions:'none', telephony:'none', campaigns:'view', calls:'view', reports:'none', recordings:'view', dnd:'none', team:'none' },
+};
+
+async function loadPermissionCatalog() {
+  if (permissionCatalog) return permissionCatalog;
+  permissionCatalog = await api('/api/admin/permission-catalog');
+  return permissionCatalog;
+}
+
+async function loadTeam() {
+  const tbody = document.getElementById('team-table');
+  try {
+    const rows = await api('/api/admin/team');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--ink-soft)">No team members yet</td></tr>'; return; }
+    tbody.innerHTML = rows.map(r => `
+      <tr><td><strong>${r.name}</strong></td><td>${r.email}</td>
+      <td><span class="badge ${r.role==='admin'?'badge-purple':r.role==='manager'?'badge-blue':'badge-gray'}">${r.role}</span></td>
+      <td><span class="badge ${r.status==='active'?'badge-green':'badge-red'}">${r.status}</span></td>
+      <td>${new Date(r.created_at).toLocaleDateString()}</td>
+      <td>${r.role!=='admin'?`<button class="btn-ghost btn-sm" onclick="toggleTeamStatus('${r.id}','${r.status==='active'?'suspended':'active'}')">${r.status==='active'?'Suspend':'Activate'}</button><button class="btn-ghost btn-sm" onclick="deleteTeamMember('${r.id}')">Remove</button>`:'<span style="color:var(--ink-soft);font-size:11px">Org Admin</span>'}</td></tr>
+    `).join('');
+  } catch (e) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--red)">Could not load team — check permissions</td></tr>'; }
+}
+
+async function openTeamModal() {
+  document.getElementById('tm-name').value = ''; document.getElementById('tm-email').value = ''; document.getElementById('tm-password').value = '';
+  const roleSel = document.getElementById('tm-role');
+  roleSel.innerHTML = user.role === 'manager' ? '<option value="agent">Agent</option>' : '<option value="agent">Agent</option><option value="manager">Manager</option>';
+  await loadPermissionCatalog();
+  applyRoleDefaultsToGrid();
+  document.getElementById('team-modal').classList.remove('hidden');
+}
+
+function applyRoleDefaultsToGrid() {
+  const role = document.getElementById('tm-role').value;
+  currentGridPerms = { ...ROLE_DEFAULT_GRID[role] };
+  renderPermissionGrid();
+}
+
+function renderPermissionGrid() {
+  if (!permissionCatalog) return;
+  const { modules, levels } = permissionCatalog;
+  document.getElementById('permission-grid').innerHTML = `<div class="perm-grid">` + modules.map(m => {
+    const isTeam = m.key === 'team';
+    const current = isTeam ? 'none' : (currentGridPerms[m.key] || 'none');
+    return `<div class="perm-row"><div class="perm-label">${m.label}${isTeam?' <span style="color:var(--ink-soft);font-weight:400">(admin only)</span>':''}</div>
+      <div class="perm-pills">${levels.map(lvl => `<div class="perm-pill ${current===lvl?'active':''} ${isTeam?'locked':''}" onclick="${isTeam?'':`setPermLevel('${m.key}','${lvl}')`}">${lvl}</div>`).join('')}</div></div>`;
+  }).join('') + `</div>`;
+}
+function setPermLevel(moduleKey, level) { currentGridPerms[moduleKey] = level; renderPermissionGrid(); }
+
+async function inviteTeamMember() {
+  const name = document.getElementById('tm-name').value.trim();
+  const email = document.getElementById('tm-email').value.trim();
+  const password = document.getElementById('tm-password').value;
+  const role = document.getElementById('tm-role').value;
+  if (!name || !email || !password) { alert('All fields are required'); return; }
+  if (password.length < 6) { alert('Password must be at least 6 characters'); return; }
+  const res = await api('/api/admin/team', 'POST', { name, email, password, role, permissions: currentGridPerms });
+  if (res.error) { alert(res.error); return; }
+  closeModal('team-modal');
+  loadTeam();
+}
+async function toggleTeamStatus(id, newStatus) { await api('/api/admin/team/' + id, 'PUT', { status: newStatus }); loadTeam(); }
+async function deleteTeamMember(id) { if (!confirm('Remove this team member?')) return; await api('/api/admin/team/' + id, 'DELETE'); loadTeam(); }
+
+// ── ORGANIZATIONS (Super Admin) ──────────────────────────────────────────
+async function loadOrganizations() {
+  const tbody = document.getElementById('orgs-table');
+  try {
+    const rows = await api('/api/admin/organizations');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--ink-soft)">No organizations yet</td></tr>'; return; }
+    tbody.innerHTML = rows.map(o => `
+      <tr><td><strong>${o.name}</strong></td>
+      <td><select onchange="updateOrgPlan('${o.id}', this.value)" style="padding:4px 8px;font-size:11px;border:1px solid var(--line);border-radius:4px">
+        <option value="starter" ${o.plan==='starter'?'selected':''}>Starter</option>
+        <option value="growth" ${o.plan==='growth'?'selected':''}>Growth</option>
+        <option value="enterprise" ${o.plan==='enterprise'?'selected':''}>Enterprise</option>
+      </select></td>
+      <td>${o.userCount}</td><td>${o.agentCount}</td><td>${o.callCount}</td>
+      <td><span class="badge ${o.status==='active'?'badge-green':'badge-red'}">${o.status}</span></td>
+      <td><button class="btn-ghost btn-sm" onclick="toggleOrgStatus('${o.id}','${o.status==='active'?'suspended':'active'}')">${o.status==='active'?'Suspend':'Activate'}</button></td></tr>
+    `).join('');
+  } catch (e) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red)">Could not load organizations — check permissions</td></tr>'; }
+}
+async function toggleOrgStatus(id, newStatus) { await api('/api/admin/organizations/' + id + '/status', 'PUT', { status: newStatus }); loadOrganizations(); }
+async function updateOrgPlan(id, plan) { await api('/api/admin/organizations/' + id + '/plan', 'PUT', { plan }); loadOrganizations(); }
+
+// ── REPORTS ───────────────────────────────────────────────────────────────
 function showReport(type) {
   currentReport = type;
   document.querySelectorAll('.report-tab').forEach(t => t.classList.remove('active'));
@@ -944,80 +823,68 @@ function showReport(type) {
 async function loadReport() {
   const out = document.getElementById('report-output');
   out.innerHTML = '<div class="empty"><div class="ico">&#9203;</div><div class="ttl">Loading...</div></div>';
-
   if (currentReport === 'cdr') {
+    const params = new URLSearchParams();
     const phone = document.getElementById('rf-phone').value;
     const outcome = document.getElementById('rf-outcome').value;
-    const params = new URLSearchParams();
     if (phone) params.append('phone', phone);
     if (outcome) params.append('outcome', outcome);
-    const rows = await api('/api/reports/cdr?' + params.toString());
-    renderCdrTable(rows);
+    renderCdrTable(await api('/api/reports/cdr?' + params.toString()));
   } else if (currentReport === 'by-did') {
-    const rows = await api('/api/reports/by-did');
-    renderGenericTable(rows, [
-      ['did_number','DID Number'], ['did_label','Label'], ['total_calls','Total Calls'],
-      ['interested','Interested'], ['transferred','Transferred'], ['avg_duration','Avg Duration (s)']
-    ]);
+    renderGenericTable(await api('/api/reports/by-did'), [['did_number','DID Number'],['did_label','Label'],['total_calls','Total Calls'],['interested','Interested'],['transferred','Transferred'],['avg_duration','Avg Duration (s)']]);
   } else if (currentReport === 'by-disposition') {
-    const rows = await api('/api/reports/by-disposition');
-    renderGenericTable(rows, [
-      ['disposition_name','Disposition'], ['sub_disposition','Sub-Disposition'],
-      ['total_calls','Total Calls'], ['avg_duration','Avg Duration (s)']
-    ]);
+    renderGenericTable(await api('/api/reports/by-disposition'), [['disposition_name','Disposition'],['sub_disposition','Sub-Disposition'],['total_calls','Total Calls'],['avg_duration','Avg Duration (s)']]);
   } else if (currentReport === 'by-agent') {
-    const rows = await api('/api/reports/by-agent');
-    renderGenericTable(rows, [
-      ['agent_name','Agent'], ['total_calls','Total Calls'], ['interested','Interested'],
-      ['transferred','Transferred'], ['total_talk_time','Total Talk Time (s)']
-    ]);
+    renderGenericTable(await api('/api/reports/by-agent'), [['agent_name','Agent'],['total_calls','Total Calls'],['interested','Interested'],['transferred','Transferred'],['total_talk_time','Total Talk Time (s)']]);
   } else if (currentReport === 'by-campaign') {
-    const rows = await api('/api/reports/by-campaign');
-    renderGenericTable(rows, [
-      ['campaign_name','Campaign'], ['campaign_mode','Mode'], ['total_calls','Total Calls'],
-      ['interested','Interested'], ['transferred','Transferred'], ['not_interested','Not Interested']
-    ]);
+    renderGenericTable(await api('/api/reports/by-campaign'), [['campaign_name','Campaign'],['campaign_mode','Mode'],['total_calls','Total Calls'],['interested','Interested'],['transferred','Transferred'],['not_interested','Not Interested']]);
   } else if (currentReport === 'by-number') {
-    const rows = await api('/api/reports/by-number');
-    renderGenericTable(rows, [
-      ['phone','Phone'], ['total_calls','Total Calls'], ['interested','Interested'],
-      ['total_duration','Total Duration (s)'], ['last_call_at','Last Call']
-    ]);
-  } else if (currentReport === 'recordings') {
-    const rows = await api('/api/reports/recordings');
-    renderRecordings(rows);
+    renderGenericTable(await api('/api/reports/by-number'), [['phone','Phone'],['total_calls','Total Calls'],['interested','Interested'],['total_duration','Total Duration (s)'],['last_call_at','Last Call']]);
   }
 }
-
 function renderCdrTable(rows) {
   const out = document.getElementById('report-output');
   if (!rows.length) { out.innerHTML = '<div class="empty"><div class="ico">&#9776;</div><div class="ttl">No call records found</div></div>'; return; }
-  out.innerHTML = `<table class="cdr-table"><thead><tr>
-    <th>Phone</th><th>Direction</th><th>Outcome</th><th>Duration</th><th>Date</th>
-  </tr></thead><tbody>${rows.map(r => `
-    <tr><td>${r.phone||'—'}</td><td>${r.direction||'—'}</td>
-    <td><span class="badge ${r.outcome==='INTERESTED'?'badge-green':r.outcome==='TRANSFER'?'badge-blue':'badge-gray'}">${r.outcome||'—'}</span></td>
-    <td>${r.duration}s</td><td>${new Date(r.created_at).toLocaleString()}</td></tr>
-  `).join('')}</tbody></table>`;
+  out.innerHTML = `<table class="cdr-table"><thead><tr><th>Phone</th><th>Direction</th><th>Outcome</th><th>Duration</th><th>Date</th></tr></thead><tbody>${rows.map(r => `
+    <tr><td>${r.phone||'—'}</td><td>${r.direction||'—'}</td><td><span class="badge ${r.outcome==='INTERESTED'?'badge-green':r.outcome==='TRANSFER'?'badge-blue':'badge-gray'}">${r.outcome||'—'}</span></td>
+    <td>${r.duration}s</td><td>${new Date(r.created_at).toLocaleString()}</td></tr>`).join('')}</tbody></table>`;
 }
-
 function renderGenericTable(rows, cols) {
   const out = document.getElementById('report-output');
   if (!rows.length) { out.innerHTML = '<div class="empty"><div class="ico">&#9776;</div><div class="ttl">No data available</div></div>'; return; }
-  out.innerHTML = `<table class="cdr-table"><thead><tr>${cols.map(c=>`<th>${c[1]}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r => `<tr>${cols.map(c=>`<td>${r[c[0]] ?? '—'}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  out.innerHTML = `<table class="cdr-table"><thead><tr>${cols.map(c=>`<th>${c[1]}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c=>`<td>${r[c[0]] ?? '—'}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
 
-function renderRecordings(rows) {
-  const out = document.getElementById('report-output');
+// ── RECORDINGS ────────────────────────────────────────────────────────────
+async function loadRecordings() {
+  const out = document.getElementById('recordings-output');
+  out.innerHTML = '<div class="empty"><div class="ico">&#9203;</div><div class="ttl">Loading...</div></div>';
+  const params = new URLSearchParams();
+  const phone = document.getElementById('rec-phone')?.value || '';
+  const category = document.getElementById('rec-category')?.value || '';
+  if (phone) params.append('phone', phone);
+  if (category) params.append('category', category);
+  const rows = await api('/api/recordings?' + params.toString());
   if (!rows.length) { out.innerHTML = '<div class="empty"><div class="ico">&#127911;</div><div class="ttl">No recordings found</div></div>'; return; }
   out.innerHTML = rows.map(r => `
-    <div class="rec-row">
-      <div style="flex:1">
-        <div style="font-weight:700;font-size:12px">${r.phone || 'Unknown'}</div>
-        <div class="rec-meta">${r.outcome||'—'} &middot; ${r.duration}s &middot; ${new Date(r.created_at).toLocaleString()}</div>
-      </div>
-      <audio controls src="${r.recording_path}"></audio>
-    </div>
+    <div class="rec-card"><div class="rec-card-info"><div class="rec-card-phone">${r.phone || 'Unknown number'}</div>
+    <div class="rec-card-meta">${r.outcome||'—'} &middot; ${r.duration}s &middot; ${new Date(r.created_at).toLocaleString()} &middot; <span class="badge badge-gray">${r.category}</span></div>
+    <div class="rec-tags">${(r.tags||[]).map(t => `<span class="rec-tag">${t}</span>`).join('')}</div></div>
+    <audio controls src="${r.recording_path}" style="height:32px;max-width:200px"></audio>
+    <button class="btn-ghost btn-sm" onclick="openRecordingMeta('${r.id}')">Edit</button></div>
   `).join('');
 }
+async function openRecordingMeta(callId) {
+  const rec = await api('/api/recordings/' + callId);
+  const tags = prompt('Tags (comma separated):', (rec.tags||[]).join(', '));
+  if (tags === null) return;
+  const notes = prompt('Notes:', rec.notes || '');
+  if (notes === null) return;
+  const category = prompt('Category (general/sales/support/complaint):', rec.category || 'general');
+  if (category === null) return;
+  await api('/api/recordings/' + callId + '/meta', 'PUT', { tags: tags.split(',').map(t=>t.trim()).filter(Boolean), notes, category });
+  loadRecordings();
+}
+
+// Refresh dashboard periodically
+setInterval(() => { if (!document.getElementById('app-screen').classList.contains('hidden')) loadDashboard(); }, 20000);
