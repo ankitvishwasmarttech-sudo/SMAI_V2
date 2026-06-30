@@ -49,6 +49,7 @@
       <div class="nav-item" data-page="calls" onclick="showPage('calls')"><span class="ico">&#8981;</span> Call Logs</div>
       <div class="nav-item" data-page="reports" onclick="showPage('reports')"><span class="ico">&#9776;</span> Reports</div>
       <div class="nav-item" data-page="recordings" onclick="showPage('recordings')"><span class="ico">&#127911;</span> Recordings</div>
+      <div class="nav-item" data-page="quality" onclick="showPage('quality')"><span class="ico">&#9989;</span> Quality Audit</div>
       <div class="nav-item" data-page="dnd" onclick="showPage('dnd')"><span class="ico">&#8856;</span> DND List</div>
       <div class="nav-section-label" id="nav-admin-label">Administration</div>
       <div class="nav-item" id="nav-team" data-page="team" onclick="showPage('team')"><span class="ico">&#128101;</span> Team</div>
@@ -175,6 +176,25 @@
         <div class="panel"><div class="panel-body" id="recordings-output"><div class="empty"><div class="ico">&#127911;</div><div class="ttl">No recordings found</div></div></div></div>
       </div>
 
+      <div id="page-quality" class="page">
+        <div class="page-head">
+          <div><h1>Quality Audit</h1><p>Review call recordings — score, compliance, and reviewer remarks</p></div>
+          <button class="btn-outline btn-sm" onclick="openCriteriaModal()">Manage Checklist</button>
+        </div>
+        <div class="sub-tabs">
+          <button class="sub-tab-btn active" onclick="showQASubPage('pending')">Pending Review</button>
+          <button class="sub-tab-btn" onclick="showQASubPage('audited')">Audited</button>
+        </div>
+        <div id="qa-pending" class="sub-page active">
+          <div class="panel"><table><thead><tr><th>Phone</th><th>Outcome</th><th>Duration</th><th>Date</th><th>Action</th></tr></thead>
+          <tbody id="qa-pending-table"><tr><td colspan="5" style="text-align:center;padding:40px;color:var(--ink-soft)">Loading...</td></tr></tbody></table></div>
+        </div>
+        <div id="qa-audited" class="sub-page">
+          <div class="panel"><table><thead><tr><th>Phone</th><th>Score</th><th>Status</th><th>Reviewed</th><th>Action</th></tr></thead>
+          <tbody id="qa-audited-table"><tr><td colspan="5" style="text-align:center;padding:40px;color:var(--ink-soft)">Loading...</td></tr></tbody></table></div>
+        </div>
+      </div>
+
       <div id="page-dnd" class="page">
         <div class="page-head"><div><h1>DND List</h1><p>Numbers excluded from all calling campaigns</p></div></div>
         <div class="panel"><div class="panel-body"><div class="empty"><div class="ico">&#8856;</div><div class="ttl">DND list is empty</div></div></div></div>
@@ -214,14 +234,14 @@
           </select>
         </div>
       </div>
-      <div class="field"><label>AI Provider</label><div class="provider-grid" id="ag-provider-grid"></div><input type="hidden" id="ag-provider" value="groq"/></div>
+      <div class="field"><label>AI Provider</label>
+        <select id="ag-provider" onchange="selectProvider(this.value)"></select>
+        <p class="help-text" id="ag-provider-type-note"></p>
+      </div>
       <div class="field byoai-box">
         <label>API Key <span id="ag-key-status" class="badge badge-gray" style="margin-left:6px">missing</span></label>
-        <div class="inline-flex">
-          <input type="password" id="ag-api-key" placeholder="Paste your provider API key" style="flex:1"/>
-          <button class="btn-outline btn-sm" type="button" onclick="testAgentKey()">Test Key</button>
-        </div>
-        <p class="help-text" id="ag-key-hint">Your key is encrypted and stored only for this agent.</p>
+        <input type="password" id="ag-api-key" placeholder="Paste your provider API key"/>
+        <p class="help-text" id="ag-key-hint">Your key is encrypted and verified automatically when you save this agent.</p>
         <div id="ag-test-result" class="help-text" style="margin-top:4px"></div>
       </div>
       <div class="field"><label>System Prompt</label><textarea id="ag-prompt" placeholder="You are Nayan, a professional sales executive..."></textarea></div>
@@ -368,6 +388,50 @@
   </div>
 </div>
 
+<div id="audit-modal" class="modal-overlay hidden">
+  <div class="modal modal-lg">
+    <div class="modal-head"><h3>Call Quality Audit</h3><button class="modal-close" onclick="closeModal('audit-modal')">&times;</button></div>
+    <div class="modal-body">
+      <div id="audit-call-meta" class="queue-mini"></div>
+      <div class="field"><label>Recording</label><audio id="audit-audio" controls style="width:100%"></audio></div>
+      <div class="field"><label>Transcript</label><textarea id="audit-transcript" rows="5" placeholder="Paste or edit the call transcript here..."></textarea></div>
+      <div class="inline-flex" style="margin:10px 0">
+        <button class="btn-sm btn-outline" onclick="generateAiDraft()">Generate AI Draft</button>
+        <span id="audit-ai-status" class="help-text"></span>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Overall Score (0-100)</label><input type="number" id="audit-score" min="0" max="100" value="0"/></div>
+        <div class="field"><label>Status</label><select id="audit-status"><option value="pending">Pending</option><option value="reviewed">Reviewed</option><option value="escalated">Escalated</option></select></div>
+      </div>
+      <hr class="section-divider"/>
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);margin-bottom:10px">Quality Points</label>
+      <div id="audit-quality-points"></div>
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--ink-soft);margin:16px 0 10px">Compliance Points</label>
+      <div id="audit-compliance-points"></div>
+      <div class="field" style="margin-top:16px"><label>Reviewer Remarks</label><textarea id="audit-remarks" rows="3" placeholder="Submission remark / overall feedback..."></textarea></div>
+    </div>
+    <div class="modal-foot"><button class="btn-outline" onclick="closeModal('audit-modal')">Cancel</button><button class="btn" onclick="saveAudit()">Save Audit</button></div>
+  </div>
+</div>
+
+<div id="criteria-modal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-head"><h3>Manage Audit Checklist</h3><button class="modal-close" onclick="closeModal('criteria-modal')">&times;</button></div>
+    <div class="modal-body">
+      <p class="help-text" style="margin-bottom:14px">These criteria appear as checkboxes on every audit and feed the AI draft generator.</p>
+      <div id="criteria-list"></div>
+      <hr class="section-divider"/>
+      <div class="field-row">
+        <div class="field"><label>Category</label><select id="cr-category"><option value="quality">Quality</option><option value="compliance">Compliance</option></select></div>
+        <div class="field"><label>Weight</label><input type="number" id="cr-weight" value="10" min="1" max="100"/></div>
+      </div>
+      <div class="field"><label>Checklist Item</label><div class="inline-flex"><input type="text" id="cr-label" placeholder="e.g. Agent confirmed customer identity" style="flex:1"/><button class="btn-sm btn-outline" onclick="addCriterion()">Add</button></div></div>
+    </div>
+    <div class="modal-foot"><button class="btn-outline" onclick="closeModal('criteria-modal')">Close</button></div>
+  </div>
+</div>
+
+<script src="quality.js"></script>
 <script src="flowbuilder.js"></script>
 <script src="app.js"></script>
 </body>

@@ -173,7 +173,6 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
-  -- ====== RECORDING METADATA — tags, notes, category, retention (separate from raw call row) ======
   CREATE TABLE IF NOT EXISTS recording_meta (
     call_id TEXT PRIMARY KEY,
     org_id TEXT NOT NULL,
@@ -182,6 +181,33 @@ db.exec(`
     category TEXT DEFAULT 'general',
     retention_days INTEGER DEFAULT 90,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- ====== QUALITY AUDIT — call scoring, compliance review, remarks ======
+  CREATE TABLE IF NOT EXISTS quality_audits (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    call_id TEXT NOT NULL,
+    reviewer_id TEXT,
+    transcript TEXT DEFAULT '',
+    score INTEGER DEFAULT 0,
+    quality_points TEXT DEFAULT '[]',
+    compliance_points TEXT DEFAULT '[]',
+    remarks TEXT DEFAULT '',
+    status TEXT DEFAULT 'pending',
+    ai_generated INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Customizable scoring checklist per organization
+  CREATE TABLE IF NOT EXISTS quality_criteria (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    category TEXT DEFAULT 'quality',
+    label TEXT NOT NULL,
+    weight INTEGER DEFAULT 10,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 

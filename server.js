@@ -18,8 +18,9 @@ app.use('/api/ivr',          require('./backend/routes/ivr'));
 app.use('/api/telephony',    require('./backend/routes/telephony'));
 app.use('/api/reports',      require('./backend/routes/reports'));
 app.use('/api/recordings',   require('./backend/routes/recordings'));
+app.use('/api/quality',      require('./backend/routes/quality'));
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', version: '3.1' }));
+app.get('/api/health', (req, res) => res.json({ status: 'ok', version: '3.2' }));
 
 app.use(express.static(path.join(__dirname, 'frontend/public')));
 app.get('/{*path}', (req, res) => res.sendFile(path.join(__dirname, 'frontend/public/index.html')));

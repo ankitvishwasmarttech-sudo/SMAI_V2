@@ -114,6 +114,7 @@ function showPage(page) {
   if (page === 'team') loadTeam();
   if (page === 'organizations') loadOrganizations();
   if (page === 'recordings') loadRecordings();
+  if (page === 'quality') loadQualityPage();
 }
 
 async function loadEverything() {
@@ -238,18 +239,29 @@ function updateVoiceList(providerId, selectedVoice) {
   sel.innerHTML = voices.map(v => `<option value="${v}" ${v===selectedVoice?'selected':''}>${v}</option>`).join('');
 }
 
+const PROVIDER_TYPE_NOTES = {
+  native_ws: 'Handles speech-to-text, conversation, and voice generation all in one — nothing else needed.',
+  pipeline:  'Conversation only (text). You also need a separate Speech-to-Text and Text-to-Speech provider to handle a phone call.',
+  tts_only:  'Converts text to voice only. Pair this with a "pipeline" provider above for the conversation.',
+  stt_only:  'Converts voice to text only. Pair this with a "pipeline" provider above for the conversation.',
+};
+
 function renderProviderGrid(list, selected) {
-  const el = document.getElementById('ag-provider-grid');
-  el.innerHTML = list.map(p => `
-    <div class="provider-opt ${p.id===selected?'active':''}" data-pid="${p.id}" onclick="selectProvider('${p.id}')">${p.name}<span class="ptype">${p.type.replace('_',' ')}</span></div>
-  `).join('');
+  const sel = document.getElementById('ag-provider');
+  sel.innerHTML = list.map(p => `<option value="${p.id}" ${p.id===selected?'selected':''}>${p.name} — ${p.type.replace('_',' ')}</option>`).join('');
+  updateProviderTypeNote(list, selected);
+}
+
+function updateProviderTypeNote(list, pid) {
+  const p = list.find(x => x.id === pid);
+  const note = document.getElementById('ag-provider-type-note');
+  if (p) note.textContent = PROVIDER_TYPE_NOTES[p.type] || '';
 }
 
 function selectProvider(pid) {
   document.getElementById('ag-provider').value = pid;
-  document.querySelectorAll('#ag-provider-grid .provider-opt').forEach(o => o.classList.toggle('active', o.dataset.pid === pid));
   updateVoiceList(pid, null);
-  loadProviders().then(list => updateKeyHint(list, pid));
+  loadProviders().then(list => { updateKeyHint(list, pid); updateProviderTypeNote(list, pid); });
 }
 
 async function testAgentKey() {
@@ -266,8 +278,9 @@ async function testAgentKey() {
   }
   resultEl.textContent = 'Testing...';
   const res = await api('/api/agents/' + editingAgentId + '/test-key', 'POST');
-  resultEl.textContent = res.message;
+  resultEl.textContent = (res.valid ? '✓ Verified — ' : '✗ Failed — ') + res.message;
   resultEl.style.color = res.valid ? 'var(--green)' : 'var(--red)';
+  resultEl.style.fontWeight = '700';
   const statusBadge = document.getElementById('ag-key-status');
   statusBadge.textContent = res.valid ? 'connected' : 'invalid';
   statusBadge.className = 'badge ' + (res.valid ? 'key-status-connected' : 'key-status-invalid');
@@ -286,8 +299,42 @@ async function createAgent() {
   const payload = { name, prompt, voice, language, provider };
   if (apiKeyVal !== '••••••••') payload.api_key = apiKeyVal;
 
-  if (editingAgentId) { payload.status = 'active'; await api('/api/agents/' + editingAgentId, 'PUT', payload); }
-  else { await api('/api/agents', 'POST', payload); }
+  const btn = document.querySelector('#agent-modal .modal-foot .btn:not(.btn-outline)');
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Saving...'; btn.disabled = true;
+
+  let agentId = editingAgentId;
+  let res;
+  try {
+    if (editingAgentId) { payload.status = 'active'; res = await api('/api/agents/' + editingAgentId, 'PUT', payload); }
+    else { res = await api('/api/agents', 'POST', payload); agentId = res.id; }
+  } catch (e) {
+    btn.textContent = originalLabel; btn.disabled = false;
+    alert('Could not save agent — check your connection and try again.');
+    return;
+  }
+
+  if (res && res.error) {
+    btn.textContent = originalLabel; btn.disabled = false;
+    alert(res.error);
+    return;
+  }
+
+  // If a real key was supplied, verify it automatically right here — no separate step for the client.
+  if (apiKeyVal && apiKeyVal !== '••••••••' && agentId) {
+    btn.textContent = 'Verifying key...';
+    const testRes = await api('/api/agents/' + agentId + '/test-key', 'POST');
+    if (!testRes.valid) {
+      btn.textContent = originalLabel; btn.disabled = false;
+      alert('Agent saved, but the API key could not be verified:\n\n' + testRes.message + '\n\nYou can fix the key by editing this agent.');
+      editingAgentId = null;
+      closeModal('agent-modal');
+      loadAgents();
+      return;
+    }
+  }
+
+  btn.textContent = originalLabel; btn.disabled = false;
   editingAgentId = null;
   closeModal('agent-modal');
   loadAgents();
